@@ -148,7 +148,95 @@ common detail and a switch to an empty profile. It verifies both movie and serie
 including a series watched for 46 seconds with two playable bindings. It restores the original profile, language
 preferences and fixture history afterwards. Evidence lives in `app/build/android-dev/personalized-home/`.
 
-## Boundaries
+## Shared aggregation engine (2026-10-26)
+
+The aggregation layer is shared by Android and the future desktop (JVM) app. Android only
+supplies UI, its stores and its extension wrappers.
+
+| Location | Contents |
+|---|---|
+| `shared/src/commonMain/.../domain/media` | Pure domain: `MediaAggregator`, `EpisodeAggregator`, `MediaReferenceResolver`, planners, `SearchSession`. |
+| `shared/src/jvmCommonMain/.../aggregation` (Android + JVM) | `CanonicalSearchEngine`, `SearchMediaMapper`, identity evidence/adapters, TMDB access (`SearchMetadataCatalog`), poster signatures, `CanonicalDetailRequest/Store/Loader/Builder`, `CanonicalSourceLoader`, `SourceRanking`, `PlaybackPolicy`, `PlaybackVerification`, `StreamProbe`, `ProviderHealth`, `SourceRegistry`, `ProviderGateway`. |
+| `shared/src/jvmMain/.../aggregation` | Desktop image decoding (`ImageIoArtworkSampler`). |
+| `app/.../ui/search/aggregation/AndroidAggregation.kt` | Installs the Android platform: `CloudStreamApp` key/value store, `APIRepository` gateway (timeouts, load cache), `BitmapFactory` sampler. |
+| `app/...` | `SearchViewModel` (LiveData bridge), `AggregatedSearchResponse`, `CanonicalDetail` (projection onto upstream detail UI, progress migration), player integration, diagnostics. |
+
+`AggregationPlatform` holds the four platform pieces: `KeyValueStore`, `SourceRegistry`,
+`ProviderGateway` and `ArtworkSampler`. `SourceRegistry` returns `RegisteredProvider`s
+(`MainAPI` + stable ID) from `APIHolder`; the engine never sees repositories or plugin files.
+Stable provider IDs are `pluginFile|implementationClass|name`; saved bindings carry them
+(`DetailBinding.providerId`, `EpisodeSourceBinding.providerId`) and resolve by ID, then by
+exact name/domain, then by a unique name. Older saved contexts without IDs still resolve.
+
+### Search
+`CanonicalSearchEngine` is the former `SearchViewModel` pipeline, confined to one sequential
+dispatcher off the UI thread and published as a `StateFlow`. Additions:
+- matching ignores accents, `&`/and/et and Roman sequel numbers (II–IX) through
+  `MediaAggregator.matchKey`; persistent identities keep `normalizeTitle`;
+- known years may differ by one; an exact year is preferred for groups and TMDB references,
+  and a wider spread stays separate;
+- explicit catalogue labels (`- série`, `(film)`) are stripped and correct the search type;
+- TMDB references learn their IMDb ID (4 per query), so a provider that only knows the IMDb ID
+  joins a TMDB-identified work despite another title;
+- show references include season posters, and alternate posters of seasons 1–2 for
+  unresolved whole-show entries (8 season requests per query);
+- a candidate whose own IDs are shared with several groups merges them when no ID, family,
+  year or edition contradicts it. Title evidence never bridges groups.
+
+### Detail
+`CanonicalDetailLoader` loads 6 bindings at once, at most 2 per provider, and reports progress.
+The page appears once a whole-show page and 60 % of bindings are in, or after 4 s, then is
+republished once with every binding (selected season and range are kept).
+`CanonicalDetailBuilder` accepts pages independently of completion order: wrong family,
+conflicting known ID, or minority learned ID (ties go to the base page) reject a page; without
+a shared ID, a year more than one apart or titles unrelated to every observed title also
+reject it (contexts saved before titles were recorded only check the year).
+Flat, season-less, unscoped episode lists use absolute keys (`abs:eN`) that merge only with
+other absolute lists; when no seasoned list exists they are shown as season 1, otherwise in an
+"Absolute numbering" section. Absolute numbers are never converted to seasons.
+
+### Sources and playback
+- Sources are published as they arrive (6 bindings at once, 2 per provider). `PlaybackPolicy`
+  signals readiness 2.5 s after the first playable source, or at once for VF with a verified
+  1080p; the player starts then. Acquisition continues for upgrades and fallbacks.
+- Auto ranking score = quality tier (480p 1, 720p 2, 1080p 3, 1440p 3.5, 2160p 4, unreported
+  1.5) + version bonus (VF 1.95, VOST 0.9). One quality step does not override the language;
+  two do. A version remembered from an earlier playback is worth 2.5 (other versions get half
+  their bonus); a version chosen in the player for the current playback stays a hard filter.
+- `Subbed`/`Dubbed` tracks only prove VOST/VF on French-language providers.
+- Unknown HLS facts are read from the master playlist with the link's own headers
+  (`StreamProbe`: resolution, French audio → VF, French subtitles only → VOST). Extension
+  labels always win.
+- When acquisition ends, the player switches silently to a source at least 0.75 better unless
+  the user chose one. The target must answer a 2-byte request; on trial, its duration must
+  match the replaced source (10 % / 3 min) or a movie's runtime (30 % / 10 min). An error or
+  mismatch returns to the previous source at the same position and play state.
+- `ProviderHealth` (persisted) records resolve success, timeouts, latency and playback
+  successes/failures. It orders the queue; providers whose links fail in the player lose up
+  to two quality steps; repeatedly failing providers (≥ 3 attempts, < 25 % success) only run
+  as a fallback when nothing reliable was found, are skipped once playback could start, and
+  are retried after six hours.
+- Source prefetch on the detail page is disabled: some extensions (AfterDark) open
+  verification dialogs from `loadLinks()`.
+
+### Measured on the Shield (2026-10-26, French extensions)
+| | Before | After |
+|---|---|---|
+| Breaking Bad search | 16 bindings, misclassified FsMirrorLol separate | 10 providers on one card |
+| Detail page shown | after all bindings, up to 30 s | 1.6–2.1 s (complete in 5–10 s) |
+| S01E01 playback start | ~25 s (acquisition barrier) | 5–6 s, VF 1080p |
+| S01E01 links / with known quality | 26 / 3 | 65–94 / ~85 % |
+| Frieren | French and English providers on two cards | one card (IMDb link) |
+
+Debug builds also write `cache/canonical-playback.json` (start, upgrade decisions, rejections
+and the ranking the player saw) and add timings/rejections to `canonical-detail.json` and
+readiness/probe counts to `canonical-sources.json`.
+
+## Boundaries (before the shared engine)
+
+The sections below describe milestones 1–4; where they disagree with the section above, the
+shared engine section is current.
+
 
 - `shared/.../domain/media`: Android-independent `CanonicalMedia`, `ProviderBinding`,
   `MediaAggregator`, `MetadataEnrichmentPlanner` and the `SearchSession` page reducer.
@@ -174,13 +262,14 @@ preferences and fixture history afterwards. Evidence lives in `app/build/android
    family and a canonical TMDB poster. Display names and mutable domains are not
    hardcoded. Unsupported/changed protocols opt out. Source links and supported
    contracts are documented in `SearchProviderIdentityAdapters.kt` and covered by tests.
-3. Without an ID, title/verified alias, media family and edition must agree. Equal
-   known years suffice. Missing years need independent artwork evidence. Different
+3. Without an ID, title/verified alias, media family and edition must agree. Known
+   years equal or one apart suffice (exact preferred). Missing years need independent artwork evidence. Different
    known years and conflicting IDs remain guards. Season entries may join the whole
    series only with a shared trusted show ID; part/cour entries remain separate.
    An anchored season suffix supplies a title alias, never identity evidence alone.
-4. Normalize case, whitespace and punctuation; preserve accents, subtitles and sequel
-   numbers. Strip explicit trailing language tags and recognize parenthesized release
+4. Normalize case, whitespace and punctuation; for matching, also fold accents,
+   `&`/and/et and Roman sequel numbers (identities keep accents); preserve subtitles and
+   sequel numbers. Strip explicit trailing language tags and recognize parenthesized release
    years. Unknown kinds do not become title-only matches. Candidate anchors are
    evaluated before incomplete entries, then original rank order is restored.
 5. Exact artwork identities accept only canonical HTTPS TMDB asset URLs and disregard
@@ -311,10 +400,8 @@ not product telemetry.
   mode for 20 minutes, at most 200 entries. Concurrent identical loads share a mutex.
   Failure, timeout and false-return partial results are retried on the next request;
   forced reload also invalidates positive results. No opaque payload is written to logs.
-- An acquisition barrier publishes one completed snapshot. The fastest 720p callback
-  cannot start playback before a later 1080p result in that bounded phase. The upstream
-  priority-triggered loading shortcut is disabled for canonical playback. Cold loading
-  may therefore take up to the acquisition deadline; legacy playback is unchanged.
+- (Superseded on 2026-10-26: sources are published progressively and playback starts
+  early, see "Shared aggregation engine".)
 - `PlaybackSources` creates app-owned copies, preserving headers, referrer, extractor
   verification data, external audio and playlist subtypes. A weak metadata sidecar
   retains provider/version/order. Exact deduplication includes URL, version, type,
@@ -327,7 +414,7 @@ not product telemetry.
   not prove VF/VOST. Such sources remain **Unspecified audio**. VOST does not guarantee
   French subtitle availability; supplied subtitles/native tracks remain selectable.
 
-The canonical player defaults to **Auto**: VF first, then VOST, then unspecified
+(Superseded on 2026-10-26 by the score in "Shared aggregation engine".) The canonical player defaulted to **Auto**: VF first, then VOST, then unspecified
 sources, ordered within that preference by the existing quality-profile priority,
 reported resolution and stable binding/name/URL ties. This chooses the highest known
 quality under default profiles while preserving explicit upstream profile priorities
@@ -395,7 +482,7 @@ source ~/.config/cloudstream/env.sh
 ./gradlew :shared:jvmTest :app:testStableDebugUnitTest :app:assembleStableDebug --max-workers=4
 ```
 
-The latest host validation passes 124 tests (48 shared-domain, 76 app). Tests cover
+The latest host validation passes 179 tests (97 shared, 82 app). Tests cover
 remakes, missing years, canonical references, visual artwork, contradictory IDs, punctuation,
 media families, editions, ordering, stable identities, opaque payloads, enrichment
 budgets/timeouts/concurrency/cancellation, both poster layouts, navigation without a
