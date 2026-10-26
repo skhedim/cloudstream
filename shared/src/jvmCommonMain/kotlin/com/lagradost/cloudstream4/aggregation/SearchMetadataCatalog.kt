@@ -39,6 +39,7 @@ object SearchMetadataCatalog {
     private val searches = linkedMapOf<String, Saved<List<MediaReference>>>()
     private val images = linkedMapOf<ExternalMediaId, Saved<Set<String>>>()
     private val seasonImages = linkedMapOf<String, Saved<Set<String>>>()
+    private val linkedIds = linkedMapOf<ExternalMediaId, Saved<Set<ExternalMediaId>>>()
 
     @Synchronized private fun <K,T> cached(cache: MutableMap<K,Saved<T>>, key: K): T? =
         cache[key]?.takeIf { System.currentTimeMillis()-it.time < TTL }?.value
@@ -100,6 +101,25 @@ object SearchMetadataCatalog {
                 val artwork = TmdbAccess.posterArtwork(posters) + seasonPosters
                 save(images,reference.id,artwork,100)
                 reference.copy(artworkIds = reference.artworkIds+artwork)
+            } ?: reference
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { reference }
+    }
+
+    /** IDs TMDB links to the reference (IMDb), so providers using another namespace can join it. */
+    suspend fun withExternalIds(reference: MediaReference): MediaReference {
+        cached(linkedIds, reference.id)?.let { return reference.copy(equivalentIds = reference.equivalentIds + it) }
+        val type = when (reference.id.namespace) {
+            ExternalIdNamespace.TmdbMovie -> "movie"
+            ExternalIdNamespace.TmdbTv -> "tv"
+            else -> return reference
+        }
+        return try {
+            withTimeoutOrNull(3_000) {
+                val imdb = TmdbAccess.json("/$type/${reference.id.value}/external_ids").path("imdb_id").asText("")
+                val ids = setOfNotNull(runCatching { ExternalMediaId(ExternalIdNamespace.Imdb, imdb) }.getOrNull())
+                save(linkedIds, reference.id, ids, 100)
+                reference.copy(equivalentIds = reference.equivalentIds + ids)
             } ?: reference
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { reference }

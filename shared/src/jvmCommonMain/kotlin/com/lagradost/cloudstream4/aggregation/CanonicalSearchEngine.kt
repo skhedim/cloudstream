@@ -67,6 +67,7 @@ class CanonicalSearchEngine(
     private val gateway: () -> ProviderGateway = { AggregationPlatform.gateway },
     private val catalog: suspend (String) -> List<MediaReference> = { SearchMetadataCatalog.search(it) },
     private val withImages: suspend (MediaReference) -> MediaReference = SearchMetadataCatalog::withImages,
+    private val withExternalIds: suspend (MediaReference) -> MediaReference = SearchMetadataCatalog::withExternalIds,
     private val withSeasonImages: suspend (MediaReference, Int) -> MediaReference = SearchMetadataCatalog::withSeasonImages,
     private val artwork: suspend (String) -> ArtworkSignature? = SearchArtworkSignatures::load,
     /** Progressive provider responses are coalesced before metadata enrichment. */
@@ -87,6 +88,7 @@ class CanonicalSearchEngine(
     private var catalogLoading = false
     private var references: List<MediaReference> = emptyList()
     private val imageAttempts = mutableSetOf<ExternalMediaId>()
+    private val idAttempts = mutableSetOf<ExternalMediaId>()
     private val seasonImageAttempts = mutableSetOf<Pair<ExternalMediaId, Int>>()
     private var visualPlanner = VisualArtworkPlanner()
     private var visualSignatures = emptyMap<String, ArtworkSignature>()
@@ -129,6 +131,7 @@ class CanonicalSearchEngine(
         catalogLoading = false
         references = emptyList()
         imageAttempts.clear()
+        idAttempts.clear()
         seasonImageAttempts.clear()
         visualPlanner = VisualArtworkPlanner()
         visualSignatures = emptyMap()
@@ -246,6 +249,23 @@ class CanonicalSearchEngine(
         enrichmentJob = scope.launch(confined) {
             // Coalesce progressive provider responses, then enrich only unresolved duplicate titles.
             delay(coalesceMs)
+            // References that providers already point to by ID (or by title) learn their linked IDs,
+            // so a provider that only knows the IMDb ID joins the same work.
+            val idRequests = references.filter { ref ->
+                ref.id !in idAttempts && ref.equivalentIds.isEmpty() && candidates.any { candidate ->
+                    ref.id in candidate.externalIds || MediaReferenceResolver.sharesTitle(candidate, ref)
+                }
+            }.sortedByDescending { ref -> candidates.count { ref.id in it.externalIds } }.take((4 - idAttempts.size).coerceAtLeast(0))
+            idAttempts.addAll(idRequests.map { it.id })
+            if (idRequests.isNotEmpty()) {
+                val updated = withContext(Dispatchers.IO) {
+                    val permits = Semaphore(2)
+                    idRequests.map { ref -> async { permits.withPermit { withExternalIds(ref) } } }.awaitAll()
+                }.associateBy { it.id }
+                currentCoroutineContext().ensureActive()
+                references = references.map { ref -> updated[ref.id]?.let { ref.copy(equivalentIds = it.equivalentIds) } ?: ref }
+                publish()
+            }
             val seasonRequests = (references.flatMap { ref ->
                 candidates.filter { candidate ->
                     candidate.externalIds.isEmpty() && candidate.artworkIds.isNotEmpty() &&
@@ -325,7 +345,8 @@ class CanonicalSearchEngine(
             currentCoroutineContext().ensureActive()
             enrichmentJob = null
             // Pages/providers may have arrived while the bounded batch was running.
-            if (planned.isNotEmpty() || imageRequests.isNotEmpty() || visualRequests.isNotEmpty() || seasonRequests.isNotEmpty()) scheduleEnrichment()
+            if (planned.isNotEmpty() || imageRequests.isNotEmpty() || visualRequests.isNotEmpty() ||
+                seasonRequests.isNotEmpty() || idRequests.isNotEmpty()) scheduleEnrichment()
         }
     }
 }

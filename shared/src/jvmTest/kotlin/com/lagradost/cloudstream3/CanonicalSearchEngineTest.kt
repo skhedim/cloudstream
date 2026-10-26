@@ -25,7 +25,7 @@ class CanonicalSearchEngineTest {
     }
 
     private fun engine(scope: CoroutineScope, gateway: ProviderGateway) = CanonicalSearchEngine(scope, { gateway },
-        catalog = { emptyList() }, withImages = { it }, withSeasonImages = { r, _ -> r }, artwork = { null }, coalesceMs = 0)
+        catalog = { emptyList() }, withImages = { it }, withExternalIds = { it }, withSeasonImages = { r, _ -> r }, artwork = { null }, coalesceMs = 0)
 
     private suspend fun CanonicalSearchEngine.settled(query: String) =
         withTimeout(5_000) { state.first { it.query == query && it.published && !it.loading } }

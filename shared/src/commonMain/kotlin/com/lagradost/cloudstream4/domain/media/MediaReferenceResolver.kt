@@ -8,18 +8,23 @@ data class MediaReference(
     val year: Int?,
     val kind: MediaKind,
     val artworkIds: Set<String>,
-)
+    /** Other namespaces' IDs the metadata service links to [id] (e.g. its IMDb ID). */
+    val equivalentIds: Set<ExternalMediaId> = emptySet(),
+) {
+    val ids: Set<ExternalMediaId> get() = equivalentIds + id
+}
 
 object MediaReferenceResolver {
     fun enrich(candidate: MediaCandidate, references: List<MediaReference>): MediaCandidate {
         val compatible = references.filter { ref ->
-            candidate.externalIds.none {
-                (it.namespace == ref.id.namespace && it != ref.id) ||
-                    (it.namespace == ExternalIdNamespace.TmdbMovie && ref.id.namespace == ExternalIdNamespace.TmdbTv) ||
-                    (it.namespace == ExternalIdNamespace.TmdbTv && ref.id.namespace == ExternalIdNamespace.TmdbMovie)
+            candidate.externalIds.none { own ->
+                ref.ids.any { (own.namespace == it.namespace && own != it) } ||
+                    (own.namespace == ExternalIdNamespace.TmdbMovie && ref.id.namespace == ExternalIdNamespace.TmdbTv) ||
+                    (own.namespace == ExternalIdNamespace.TmdbTv && ref.id.namespace == ExternalIdNamespace.TmdbMovie)
             }
         }
-        val direct = compatible.filter { it.id in candidate.externalIds }
+        // A shared ID in any namespace the metadata service links is direct evidence.
+        val direct = compatible.filter { ref -> ref.ids.any { it in candidate.externalIds } }
         // An exact year is preferred, so a neighbouring-year homonym cannot make the reference ambiguous.
         val supported = compatible.filter { supports(candidate,it) }
         val matches = direct.ifEmpty { supported.filter { it.year == candidate.year }.ifEmpty { supported } }
@@ -29,7 +34,7 @@ object MediaReferenceResolver {
             year = ref.year ?: candidate.year,
             kind = ref.kind,
             alternateTitles = candidate.alternateTitles + candidate.title + ref.alternateTitles + ref.title,
-            externalIds = candidate.externalIds + ref.id,
+            externalIds = candidate.externalIds + ref.ids,
         )
     }
 

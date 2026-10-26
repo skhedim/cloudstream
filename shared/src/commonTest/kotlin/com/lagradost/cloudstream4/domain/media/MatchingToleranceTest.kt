@@ -76,4 +76,18 @@ class MatchingToleranceTest {
         // A season-less entry that is not a flat list stays unlocated.
         assertEquals(1, episodes.count { it.key.contains("unlocated") })
     }
+
+    @Test fun anImdbIdLinkedByTheMetadataServiceJoinsTitlesThatDiffer() {
+        val tmdb = ExternalMediaId(ExternalIdNamespace.TmdbTv, "209867")
+        val imdb = ExternalMediaId(ExternalIdNamespace.Imdb, "tt22248376")
+        val ref = MediaReference(tmdb, "Frieren", emptySet(), 2023, MediaKind.Series, emptySet(), setOf(imdb))
+        val french = MediaReferenceResolver.enrich(candidate("A", "Frieren", 2023, ids = setOf(tmdb)), listOf(ref))
+        val english = MediaReferenceResolver.enrich(candidate("B", "Frieren: Beyond Journey's End", 2023,
+            MediaKind.Anime, setOf(imdb)), listOf(ref))
+        assertEquals(1, MediaAggregator().aggregate(listOf(french, english)).size)
+        // A conflicting IMDb ID keeps the reference away.
+        val other = MediaReferenceResolver.enrich(candidate("C", "Frieren", 2023,
+            ids = setOf(ExternalMediaId(ExternalIdNamespace.Imdb, "tt1"))), listOf(ref))
+        assertTrue(tmdb !in other.externalIds)
+    }
 }
