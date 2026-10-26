@@ -72,6 +72,8 @@ class CanonicalSearchEngine(
     /** Progressive provider responses are coalesced before metadata enrichment. */
     private val coalesceMs: Long = 400,
 ) {
+    private companion object { const val MAX_SEASON_IMAGE_REQUESTS = 8 }
+
     private val confined = Dispatchers.Default.limitedParallelism(1)
     private val _state = MutableStateFlow(CanonicalSearchState())
     val state: StateFlow<CanonicalSearchState> get() = _state
@@ -244,7 +246,7 @@ class CanonicalSearchEngine(
         enrichmentJob = scope.launch(confined) {
             // Coalesce progressive provider responses, then enrich only unresolved duplicate titles.
             delay(coalesceMs)
-            val seasonRequests = references.flatMap { ref ->
+            val seasonRequests = (references.flatMap { ref ->
                 candidates.filter { candidate ->
                     candidate.externalIds.isEmpty() && candidate.artworkIds.isNotEmpty() &&
                         candidate.edition.size == 1 && candidate.edition.single().startsWith("season:") &&
@@ -255,8 +257,18 @@ class CanonicalSearchEngine(
                         ?.takeIf { it in 0..100 && ref.id.namespace == ExternalIdNamespace.TmdbTv }
                         ?.let { ref.id to it }
                 }
-            }.distinct().filter { it !in seasonImageAttempts }
-                .take((6 - seasonImageAttempts.size).coerceAtLeast(0))
+            } + references.filter { it.id.namespace == ExternalIdNamespace.TmdbTv && it.id in imageAttempts }.flatMap { ref ->
+                // Whole-show entries sometimes carry an alternate poster of an early season. Only
+                // after the show's own posters did not match, and only for its first seasons.
+                val unresolved = candidates.any { candidate ->
+                    candidate.externalIds.isEmpty() && candidate.edition.isEmpty() && candidate.artworkIds.isNotEmpty() &&
+                        candidate.artworkIds.intersect(ref.artworkIds).isEmpty() &&
+                        (candidate.year == null || ref.year == null || candidate.year == ref.year) &&
+                        MediaReferenceResolver.sharesTitle(candidate, ref)
+                }
+                if (unresolved) listOf(ref.id to 1, ref.id to 2) else emptyList()
+            }).distinct().filter { it !in seasonImageAttempts }
+                .take((MAX_SEASON_IMAGE_REQUESTS - seasonImageAttempts.size).coerceAtLeast(0))
             seasonImageAttempts.addAll(seasonRequests)
             if (seasonRequests.isNotEmpty()) {
                 val current = references

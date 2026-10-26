@@ -468,14 +468,12 @@ class ResultViewModel2 : ViewModel() {
     private var detailLoadJob: Job? = null
     override fun onCleared() {
         detailLoadJob?.cancel()
-        prefetchJob?.cancel()
         currentLoadLinkJob?.cancel()
         super.onCleared()
     }
     var EPISODE_RANGE_SIZE: Int = 20
     fun clear() {
         detailLoadJob?.cancel()
-        prefetchJob?.cancel()
         canonicalDetail = null
         currentResponse = null
         _page.postValue(null)
@@ -2664,6 +2662,8 @@ class ResultViewModel2 : ViewModel() {
         var published = 0
         var latest: List<com.lagradost.cloudstream4.aggregation.LoadedDetail> = emptyList()
         var firstPublished = false
+        val started = System.currentTimeMillis()
+        var firstPublishMs: Long? = null
 
         suspend fun publish(snapshot: List<com.lagradost.cloudstream4.aggregation.LoadedDetail>, final: Boolean) = publishLock.withLock {
             if (!final && (firstPublished || snapshot.size <= published)) return@withLock
@@ -2685,12 +2685,12 @@ class ResultViewModel2 : ViewModel() {
                         id = mainId, cacheTime = System.currentTimeMillis()))
                 if (loadTrailers) loadTrailers(response)
             }
+            if (!firstPublished) firstPublishMs = System.currentTimeMillis() - started
             firstPublished = true
             published = snapshot.size
             postSuccessful(response, mainId, repo, true, showFillers)
         }
 
-        val started = System.currentTimeMillis()
         val early = launch {
             delay(CANONICAL_FIRST_PUBLISH_MS)
             if (latest.any { it.binding.editions.isEmpty() }) publish(latest, false)
@@ -2714,26 +2714,12 @@ class ResultViewModel2 : ViewModel() {
         Log.i(TAG, "Canonical detail: ${canonical.loadedBindings}/${canonical.requestedBindings} bindings in " +
             "${System.currentTimeMillis() - started} ms, ${canonical.rejectedBindings} rejected")
         if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
-            com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical)
+            com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical,
+                firstPublishMs, System.currentTimeMillis() - started)
         }
         handleAutoStart(activity, autostart)
-        prefetchCanonicalSources()
-    }
-
-    private var prefetchJob: Job? = null
-
-    /** Resume episode, else the first episode of the selected range (or the movie). */
-    private fun prefetchCanonicalSources() {
-        prefetchJob?.cancel()
-        val target = resume()?.result
-            ?: currentEpisodes[currentIndex]?.firstOrNull { it.episode >= (currentRange?.startEpisode ?: 0) }
-            ?: currentEpisodes.values.firstOrNull()?.firstOrNull()
-        val bindings = target?.sourceBindings?.takeIf { it.isNotEmpty() } ?: return
-        prefetchJob = ioSafe {
-            // Let the page and its images load first.
-            delay(1_500)
-            com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader().prefetch(bindings)
-        }
+        // No source prefetch here: loadLinks() of some extensions opens verification dialogs,
+        // which must only appear after the user asked to play.
     }
 
     fun load(

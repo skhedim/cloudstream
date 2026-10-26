@@ -20,23 +20,35 @@ object SearchMediaMapper {
     private val edition = Regex("\\b(season|saison|part|partie|cour)\\s*(\\d+)\\b|\\bs(\\d+)\\b", RegexOption.IGNORE_CASE)
     private val languageSuffix = Regex("\\s*[\\[(](?:VF|VOSTFR|VOST|FRENCH|DUB|SUB)[\\])]\\s*$", RegexOption.IGNORE_CASE)
     private val yearSuffix = Regex("\\s*\\((18[0-9]{2}|19[0-9]{2}|20[0-9]{2})\\)\\s*$")
+    /** Catalogue type labels some extensions append, e.g. "Breaking Bad - série". */
+    private val seriesSuffix = Regex("\\s*(?:[-–—:|]\\s*(?:la\\s+)?|[\\[(]\\s*)(?:s[ée]rie|series|tv series|tv show)\\s*[\\])]?\\s*$", RegexOption.IGNORE_CASE)
+    private val filmSuffix = Regex("\\s*[\\[(]\\s*(?:film|movie)\\s*[\\])]\\s*$", RegexOption.IGNORE_CASE)
     private val seasonSuffix = Regex("\\s*(?:[-–—:]\\s*)?(?:(?:season|saison)\\s*\\d+|s\\d+)\\s*$", RegexOption.IGNORE_CASE)
 
     fun candidate(provider: ProviderKey, response: SearchResponse, providerClass: String? = null): MediaCandidate {
         val binding = ProviderBinding(provider, response.url)
         val cached = SearchMediaMetadataCache.get(binding)
-        val kind = cached?.kind?.takeIf { it != MediaKind.Unknown } ?: kind(response.type)
+        val declared = kind(response.type)
         val searchYear = when (response) {
             is MovieSearchResponse -> response.year
             is TvSeriesSearchResponse -> response.year
             is AnimeSearchResponse -> response.year
             else -> null
         }
-        val title = response.name.trim().replace(languageSuffix, "").trim()
+        var title = response.name.trim().replace(languageSuffix, "").trim()
+        // An explicit type label is stronger than a provider's default search type.
+        var labelledKind: MediaKind? = null
+        seriesSuffix.find(title)?.takeIf { it.range.first > 0 }?.let {
+            title = title.removeRange(it.range).trim(); labelledKind = MediaKind.Series
+        } ?: filmSuffix.find(title)?.takeIf { it.range.first > 0 }?.let {
+            title = title.removeRange(it.range).trim(); labelledKind = MediaKind.Movie
+        }
         val suffix = yearSuffix.find(title)
         val cleanTitle = suffix?.let { title.removeRange(it.range).trim() }?.takeIf { it.isNotBlank() } ?: title
         val year = listOfNotNull(searchYear, cached?.year, suffix?.groupValues?.get(1)?.toIntOrNull())
             .firstOrNull { it in 1800..2999 }
+        val kind = cached?.kind?.takeIf { it != MediaKind.Unknown }
+            ?: labelledKind?.takeIf { MediaAggregator.family(it) != MediaAggregator.family(declared) } ?: declared
         val ids = cached?.ids.orEmpty().toMutableSet()
         ids.addAll(SearchIdentityEvidence.externalIds(response.url))
         ids.addAll(SearchProviderIdentityAdapters.externalIds(providerClass, provider, response, kind))
@@ -61,6 +73,14 @@ object SearchMediaMapper {
         val number = match.groupValues[2].ifEmpty { match.groupValues[3] }.trimStart('0').ifEmpty { "0" }
         "$token:$number"
     }.toSet()
+
+    /** A provider title without language, type label or year suffixes, e.g. "Breaking Bad - série (2008) [VF]". */
+    fun cleanTitle(name: String): String {
+        var title = name.trim().replace(languageSuffix, "").trim()
+        seriesSuffix.find(title)?.takeIf { it.range.first > 0 }?.let { title = title.removeRange(it.range).trim() }
+            ?: filmSuffix.find(title)?.takeIf { it.range.first > 0 }?.let { title = title.removeRange(it.range).trim() }
+        return yearSuffix.find(title)?.let { title.removeRange(it.range).trim() }?.takeIf { it.isNotBlank() } ?: title
+    }
 
     /** An anchored season suffix is an alias of the show, never identity evidence by itself. */
     fun withoutSeasonSuffix(title: String): String = title.replace(seasonSuffix, "").trim()

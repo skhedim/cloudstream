@@ -10,7 +10,11 @@ data class ProviderStats(
     /** Exponentially weighted resolve time of successful loads, in milliseconds. */
     val averageMs: Double = 0.0,
     val lastSuccess: Long = 0,
+    val lastAttempt: Long = 0,
 ) {
+    /** Repeatedly failing: worth trying only as a fallback, and at least every [RETRY_MS]. */
+    fun unreliable(now: Long): Boolean = samples >= 3 && successRate < 0.25 && now - lastAttempt < RETRY_MS
+
     /** Laplace-smoothed: a provider with no history starts at 50 %. */
     @get:JsonIgnore val successRate: Double get() = (successes + 1.0) / (samples + 2.0)
     @get:JsonIgnore val timeoutRate: Double get() = if (samples == 0) 0.0 else timeouts.toDouble() / samples
@@ -26,10 +30,14 @@ data class ProviderStats(
             averageMs = if (!success) averageMs else if (successes == 0) elapsedMs.toDouble()
                 else averageMs * (1 - weight) + elapsedMs * weight,
             lastSuccess = if (success) now else lastSuccess,
+            lastAttempt = now,
         )
     }
 
-    companion object { const val UNKNOWN_MS = 8_000.0 }
+    companion object {
+        const val UNKNOWN_MS = 8_000.0
+        const val RETRY_MS = 6 * 60 * 60 * 1000L
+    }
 }
 
 /**

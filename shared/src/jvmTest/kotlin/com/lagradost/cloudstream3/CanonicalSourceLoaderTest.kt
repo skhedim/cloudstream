@@ -244,4 +244,39 @@ high.m3u8"""
         assertEquals(720, labelled.quality)
         assertEquals(SourceVersion.VOST, PlaybackSources.version(labelled))
     }
+
+    @Test fun repeatedlyFailingProvidersAreOnlyAFallback() = runBlocking {
+        ProviderHealth.reset()
+        val flaky = binding(); val good = binding()
+        repeat(3) { ProviderHealth.record(flaky.apiName, success = false, timeout = true, elapsedMs = 15_000) }
+        val called = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val result = CanonicalSourceLoader().load(listOf(flaky, good), true, false) { b, _, _, callback ->
+            called += b.apiName; if (b == good) callback(link("Good", 1080)); true
+        }
+        assertEquals(listOf(good.apiName), called)
+        assertEquals("Skipped", result.outcomes.single { it.provider == flaky.apiName }.status)
+        // Nothing playable from the reliable ones: the fallback is tried.
+        val empty = binding()
+        CanonicalSourceLoader().load(listOf(flaky, empty), true, false) { b, _, _, _ -> called += b.apiName; true }
+        assertTrue(flaky.apiName in called)
+        ProviderHealth.reset()
+    }
+
+    @Test fun aFallbackIsSkippedOncePlaybackCouldStart() = runBlocking {
+        ProviderHealth.reset()
+        val flaky = binding(); val good = binding(); val slow = binding()
+        repeat(5) { ProviderHealth.record(flaky.apiName, success = false, timeout = true, elapsedMs = 15_000) }
+        val called = java.util.Collections.synchronizedList(mutableListOf<String>())
+        var ready = false
+        val result = CanonicalSourceLoader(policy = PlaybackPolicy(graceMs = 50)).load(listOf(flaky, good, slow), true, false,
+            onReady = { ready = true }) { b, _, _, callback ->
+            called += b.apiName
+            if (b == good) callback(link("Good", 720)) else delay(300)
+            true
+        }
+        assertTrue(ready)
+        assertFalse(flaky.apiName in called)
+        assertEquals("Skipped", result.outcomes.single { it.provider == flaky.apiName }.status)
+        ProviderHealth.reset()
+    }
 }

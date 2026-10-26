@@ -29,8 +29,9 @@ class CanonicalSourcesTest {
     @Suppress("DEPRECATION")
     private fun link(label: String, quality: Int = 1080, url: String = "https://video.invalid/$label", headers: Map<String,String> = emptyMap()) =
         ExtractorLink("Fixture", label, url, "https://ref.invalid", quality, headers, "verification-data", ExtractorLinkType.VIDEO)
-    private fun state(links: List<ExtractorLink>, version: SourceVersion = SourceVersion.Auto) =
-        VideoState(instance = 0, canonical = true, sourceVersion = version,
+    private fun state(links: List<ExtractorLink>, version: SourceVersion = SourceVersion.Auto,
+        strict: Boolean = version != SourceVersion.Auto) =
+        VideoState(instance = 0, canonical = true, sourceVersion = version, strictVersion = strict,
             links = links.map { it to null }.toPersistentSet())
 
     @Test fun defaultChoosesBestKnownQualityInFrenchAndTheVersionChoiceChangesTheEligibleSources() {
@@ -60,5 +61,19 @@ class CanonicalSourcesTest {
         assertEquals(1080, state(withoutVf720).sortLinks(999).first { it.shouldUseLink }.link.first!!.quality)
         // An explicit version choice still restricts the eligible sources.
         assertEquals(480, state(withoutVf720, SourceVersion.VF).sortLinks(999).first { it.shouldUseLink }.link.first!!.quality)
+    }
+
+    @Test fun aRememberedVersionIsAStrongPreferenceButAHugeQualityGapStillWins() {
+        val vf = binding("Dubbed"); val vost = binding("Subbed")
+        val links = listOf(PlaybackSources.copy(link("vost-360", 360), vost, 0),
+            PlaybackSources.copy(link("vf-1080", 1080), vf, 1),
+            PlaybackSources.copy(link("vost-720", 720), vost, 2))
+        val remembered = state(links, SourceVersion.VOST, strict = false).sortLinks(999)
+        assertTrue(remembered.all { it.shouldUseLink })
+        assertEquals("vost-720", remembered.first().link.first!!.name.split(" · ")[1])
+        val onlyLow = state(links.take(2), SourceVersion.VOST, strict = false).sortLinks(999)
+        assertEquals("vf-1080", onlyLow.first().link.first!!.name.split(" · ")[1])
+        // Chosen in the player for this playback: only VOST is eligible.
+        assertEquals(1, state(links.take(2), SourceVersion.VOST).sortLinks(999).count { it.shouldUseLink })
     }
 }

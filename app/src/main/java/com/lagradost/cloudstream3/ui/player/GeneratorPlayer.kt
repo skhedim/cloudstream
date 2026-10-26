@@ -81,6 +81,7 @@ import com.lagradost.cloudstream3.ui.player.CustomDecoder.Companion.updateForced
 import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper.Companion.toSubtitleMimeType
 import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream4.aggregation.PlaybackPolicy
+import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
 import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
@@ -1676,12 +1677,20 @@ class GeneratorPlayer : FullScreenPlayer() {
      * clearly better source (same position, same play/pause state) unless the user chose one.
      */
     private fun upgradeCanonicalSource() {
-        if (!viewModel.state.canonical || userChoseSource) return
-        val current = currentSelectedLink ?: return
-        val best = viewModel.state.sortLinks(currentQualityProfile).firstOrNull { it.shouldUseLink }?.link ?: return
-        if (best == current) return
-        if (!canonicalPolicy.shouldUpgrade(canonicalScore(current), canonicalScore(best))) return
+        if (!viewModel.state.canonical) return
+        val ranking = viewModel.state.sortLinks(currentQualityProfile)
+        fun note(reason: String) {
+            if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.selection(
+                "upgrade-check", currentSelectedLink?.first, viewModel.state.links.size, ranking, reason)
+        }
+        if (userChoseSource) return note("user choice")
+        val current = currentSelectedLink ?: return note("nothing playing")
+        val best = ranking.firstOrNull { it.shouldUseLink }?.link ?: return note("no eligible link")
+        if (best == current) return note("already best")
+        val state = viewModel.state
+        if (!canonicalPolicy.shouldUpgrade(state.canonicalScore(current), state.canonicalScore(best))) return note("gain too small")
         Log.i(TAG, "Upgrading canonical source to ${best.first?.name}")
+        if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.selection("upgrade", best.first, viewModel.state.links.size)
         loadLink(best, sameEpisode = true, autoPlay = player.getIsPlaying())
     }
 
@@ -1702,6 +1711,8 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (!isPlayerActive.compareAndSet(false, true)) {
             return
         }
+        if (com.lagradost.cloudstream3.BuildConfig.DEBUG && viewModel.state.canonical)
+            CanonicalSourceDiagnostics.selection("start", firstAvailableLink.first, viewModel.state.links.size, links)
         loadLink(firstAvailableLink, false)
         showPlayerMetadata()
     }
@@ -2418,6 +2429,7 @@ class GeneratorPlayer : FullScreenPlayer() {
             when (loading) {
                 is Resource.Loading -> {
                     userChoseSource = false
+                    if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.loadStarted()
                     releasePlayer()
                 }
 

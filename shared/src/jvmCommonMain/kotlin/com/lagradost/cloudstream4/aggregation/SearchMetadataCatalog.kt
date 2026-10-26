@@ -90,7 +90,14 @@ object SearchMetadataCatalog {
                 // No language filter: alternate localized posters are identity evidence too.
                 val posters = TmdbAccess.json("/$type/${reference.id.value}/images").get("posters")
                     ?: return@withTimeoutOrNull reference
-                val artwork = TmdbAccess.posterArtwork(posters)
+                // Catalogues often show a season's main poster on their whole-show entry.
+                val seasonPosters = if (type != "tv") emptyList() else try {
+                    TmdbAccess.json("/tv/${reference.id.value}").get("seasons")?.mapNotNull { season ->
+                        season.path("poster_path").asText("").takeIf { it.startsWith("/") }
+                    }.orEmpty().flatMap { SearchIdentityEvidence.artworkIds("https://image.tmdb.org/t/p/original$it") }
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { emptyList() }
+                val artwork = TmdbAccess.posterArtwork(posters) + seasonPosters
                 save(images,reference.id,artwork,100)
                 reference.copy(artworkIds = reference.artworkIds+artwork)
             } ?: reference

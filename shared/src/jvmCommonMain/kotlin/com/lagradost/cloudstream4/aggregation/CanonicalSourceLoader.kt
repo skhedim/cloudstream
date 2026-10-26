@@ -89,7 +89,7 @@ class CanonicalSourceLoader(
     }
 
     /**
-     * @param preference the user's version choice; readiness then waits for that version when it exists.
+     * @param preference the remembered version choice; it weighs readiness like the player's ranking.
      * @param onSource each newly acquired unique source (a better-quality duplicate is published again).
      * @param onReady called once, when [PlaybackPolicy.shouldStart] holds.
      */
@@ -105,11 +105,19 @@ class CanonicalSourceLoader(
         val indexed = bindings.distinct().withIndex().toList()
         // Most reliable/fastest providers first; and one binding of each declared version starts
         // before the queue is spent on unknown audio.
-        val byHealth = indexed.sortedByDescending { ProviderHealth.priority(providerKey(it.value)) }
+        val now = System.currentTimeMillis()
+        // Repeatedly failing providers (often an interactive verification) are a fallback only:
+        // they start once the reliable ones are done, and only if nothing is playing yet.
+        val (fallbacks, reliable) = indexed.partition { ProviderHealth.stats(providerKey(it.value)).unreliable(now) }
+        val byHealth = reliable.sortedByDescending { ProviderHealth.priority(providerKey(it.value)) }
         val firsts = byHealth.groupBy { PlaybackSources.version("", it.value) }.values.map { it.first() }
             .sortedByDescending { PlaybackSources.versionRank(PlaybackSources.version("", it.value)) }
         val rest = byHealth.filterNot { it in firsts }
-        val ordered = firsts + rest
+        val ordered = firsts + rest + fallbacks
+        val fallbackOrdinals = fallbacks.map { it.index }.toSet()
+        val reliableDone = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val reliableRemaining = AtomicInteger(reliable.size)
+        if (reliable.isEmpty()) reliableDone.complete(Unit)
         val limiter = ProviderLimiter(concurrency, perProvider)
         val deadline = startedAt + totalTimeoutMs * 1_000_000
 
@@ -122,9 +130,7 @@ class CanonicalSourceLoader(
         val scope = this
 
         fun bestScore(): Double? = synchronized(acquired) {
-            val all = acquired.values
-            val preferred = all.filter { it.version == preference }.takeIf { preference != SourceVersion.Auto && it.isNotEmpty() }
-            (preferred ?: all).maxOfOrNull { it.score }
+            acquired.values.maxOfOrNull { SourceRanking.score(it.version, it.quality, preference) }
         }
         fun checkReady() {
             if (ready.get()) return
@@ -177,7 +183,12 @@ class CanonicalSourceLoader(
                     synchronized(rawSubtitles) { rawSubtitles += file }
                     if (isNew) onSubtitle?.invoke(file)
                 }
-                try {
+                val fallback = ordinal in fallbackOrdinals
+                if (fallback) {
+                    withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { reliableDone.await() }
+                    if ((onReady != null && ready.get()) || synchronized(acquired) { acquired.isNotEmpty() }) status = "Skipped"
+                }
+                if (status != "Skipped") try {
                     withTimeoutOrNull(totalTimeoutMs) {
                         limiter.withPermit(providerKey(binding)) {
                             // Acquire in planned order before dispatching extension work.
@@ -235,7 +246,8 @@ class CanonicalSourceLoader(
                 ensureActive()
                 val elapsed = (System.nanoTime() - started) / 1_000_000
                 val count = synchronized(raw) { raw.size }
-                if (status != "Cached" && status != "MissingProvider") {
+                if (!fallback && reliableRemaining.decrementAndGet() == 0) reliableDone.complete(Unit)
+                if (status != "Cached" && status != "MissingProvider" && status != "Skipped") {
                     ProviderHealth.record(providerKey(binding), success = count > 0, timeout = status == "Timeout", elapsedMs = elapsed)
                 }
                 pending.decrementAndGet()

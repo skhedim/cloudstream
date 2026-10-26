@@ -29,7 +29,8 @@ data class EpisodeSourceBinding(
     val providerKey: ProviderKey get() = ProviderKey(apiName, mainUrl)
 }
 
-data class DetailRejection(val binding: DetailBinding, val reason: String)
+/** [title]/[year] are what the rejected page declared, for diagnostics. */
+data class DetailRejection(val binding: DetailBinding, val reason: String, val title: String? = null, val year: Int? = null)
 
 /** A canonical episode and the provider episode whose metadata (title, plot, artwork) represents it. */
 data class CanonicalEpisodeRow(val episode: CanonicalEpisode, val original: Episode)
@@ -84,7 +85,7 @@ object CanonicalDetailBuilder {
 
     /** Titles a detail page may legitimately carry for the requested work. */
     private fun titleKeys(titles: Collection<String>): Set<String> = titles.flatMap { title ->
-        val clean = title.replace(Regex("\\s*\\((18|19|20)\\d{2}\\)\\s*$"), "").trim()
+        val clean = SearchMediaMapper.cleanTitle(title)
         listOf(title, clean, SearchMediaMapper.withoutSeasonSuffix(clean))
     }.map(MediaAggregator::matchKey).filter { it.isNotBlank() }.toSet()
 
@@ -96,7 +97,9 @@ object CanonicalDetailBuilder {
     fun build(request: CanonicalDetailRequest, loaded: List<LoadedDetail>): CanonicalDetailModel? {
         val wantedFamily = MediaAggregator.family(request.kind) ?: return null
         val rejected = mutableListOf<DetailRejection>()
-        fun reject(detail: LoadedDetail, reason: String) { rejected += DetailRejection(detail.binding, reason) }
+        fun reject(detail: LoadedDetail, reason: String) {
+            rejected += DetailRejection(detail.binding, reason, detail.response.name, detail.response.year)
+        }
         val metadata = loaded.associateWith { SearchMediaMetadata.of(it.response) }
 
         var remaining = loaded.filter { detail ->

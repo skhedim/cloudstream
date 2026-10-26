@@ -57,8 +57,8 @@ data class DisplayLink(
 )
 
 /** Auto ranking score of a canonical link: language first unless the quality gap is very large. */
-fun canonicalScore(link: VideoLink?): Double =
-    SourceRanking.score(PlaybackSources.version(link?.first), PlaybackSources.quality(link?.first))
+fun canonicalScore(link: VideoLink?, preference: SourceVersion = SourceVersion.Auto): Double =
+    SourceRanking.score(PlaybackSources.version(link?.first), PlaybackSources.quality(link?.first), preference)
 
 /** Immutable state of all current links relevant to displaying the video */
 // @MustUseReturnValues
@@ -75,7 +75,16 @@ data class VideoState(
     val sourceVersion: SourceVersion = SourceVersion.Auto,
     /** Canonical acquisition knows enough to start; it may still be loading better sources. */
     val canonicalReady: Boolean = false,
+    /**
+     * [sourceVersion] was chosen in this player for this playback: only that version is eligible.
+     * Otherwise a remembered version is a strong preference, not a filter.
+     */
+    val strictVersion: Boolean = false,
 ) {
+    /** Ranking score of [link] under this state's version preference. */
+    fun canonicalScore(link: VideoLink?): Double =
+        canonicalScore(link, if (strictVersion) SourceVersion.Auto else sourceVersion)
+
     /**
      * This acts as a local cache for sorted links that are not copied over by the copy constructor.
      *
@@ -125,7 +134,7 @@ data class VideoState(
         val requested = sourceVersion.takeIf { versionExists } ?: SourceVersion.Auto
         val display = links.map { link ->
             val base = link.toDisplayLink(qualityProfile, hideNegativeSources, hideErrorSources)
-            if (canonical && requested != SourceVersion.Auto && PlaybackSources.version(link.first) != requested)
+            if (canonical && strictVersion && requested != SourceVersion.Auto && PlaybackSources.version(link.first) != requested)
                 base.copy(shouldUseLink = false) else base
         }
         return (if (canonical) display.sortedWith(SourceRanking.comparator(
@@ -280,7 +289,7 @@ class PlayerGeneratorViewModel : ViewModel() {
     fun selectSourceVersion(version: SourceVersion) {
         preferredVersion = version
         setKey("$currentAccount/canonical_source_version", version.name)
-        modifyState { copy(sourceVersion = version) }
+        modifyState { copy(sourceVersion = version, strictVersion = version != SourceVersion.Auto) }
     }
 
     fun setSubtitleYear(year: Int?) {

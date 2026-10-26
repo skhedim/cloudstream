@@ -44,6 +44,12 @@ class CanonicalDetailBuilderTest {
         assertTrue(ExternalMediaId(ExternalIdNamespace.TmdbTv, "1396") in translated.knownIds)
     }
 
+    @Test fun catalogueLabelsAndYearsInDetailTitlesAreNotTitleConflicts() = runBlocking {
+        val model = CanonicalDetailBuilder.build(request(a, b, c), listOf(series(a),
+            series(b, title = "Breaking Bad - série", year = null), series(c, title = "Breaking Bad (2008) [VF]", year = null)))!!
+        assertEquals(3, model.compatible.size)
+    }
+
     @Test fun learnedIdsAreDecidedByMajorityIndependentlyOfCompletionOrder() = runBlocking {
         val pages = listOf(series(a, tmdb = "1"), series(b, tmdb = "2"), series(c, tmdb = "2"))
         for (order in listOf(pages, pages.reversed(), listOf(pages[1], pages[0], pages[2]))) {

@@ -31,13 +31,25 @@ object SourceRanking {
         else -> 0.0
     }
 
+    /** Bonus of a remembered (not just chosen) version: worth 2.5 steps, so only a huge gap overrides it. */
+    const val PREFERRED_BONUS = 2.5
+
     fun versionBonus(version: SourceVersion): Double = when (version) {
         SourceVersion.VF -> VF_BONUS
         SourceVersion.VOST -> VOST_BONUS
         else -> 0.0
     }
 
-    fun score(version: SourceVersion, height: Int): Double = qualityTier(height) + versionBonus(version)
+    /**
+     * @param preference a remembered version choice: that version gets [PREFERRED_BONUS] and the
+     * others half their default bonus. [SourceVersion.Auto] keeps the default language order.
+     */
+    fun score(version: SourceVersion, height: Int, preference: SourceVersion = SourceVersion.Auto): Double =
+        qualityTier(height) + when {
+            preference == SourceVersion.Auto -> versionBonus(version)
+            version == preference -> PREFERRED_BONUS
+            else -> versionBonus(version) / 2
+        }
 
     /** Stable order: score, then the user's quality-profile priority, resolution, binding order, name, URL. */
     fun <T> comparator(

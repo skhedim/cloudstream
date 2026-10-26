@@ -40,9 +40,12 @@ object PlaybackSources {
         if (french && original) return SourceVersion.Unknown
         if (french) return SourceVersion.VF
         if (original) return SourceVersion.VOST
+        // A dub/sub track only proves VF/VOST(FR) on a French-language provider; elsewhere
+        // "Subbed" is usually original audio with English subtitles.
+        val frenchProvider = binding?.language?.substringBefore('-') == "fr"
         return when {
-            binding?.track == "Subbed" -> SourceVersion.VOST
-            binding?.track == "Dubbed" && binding.language?.substringBefore('-') == "fr" -> SourceVersion.VF
+            binding?.track == "Subbed" && frenchProvider -> SourceVersion.VOST
+            binding?.track == "Dubbed" && frenchProvider -> SourceVersion.VF
             else -> SourceVersion.Unknown
         }
     }

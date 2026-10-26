@@ -6,7 +6,7 @@ import java.io.File
 
 /** Debug evidence excludes URLs, episode payloads, headers and video links. */
 internal object CanonicalDetailDiagnostics {
-    fun write(detail: CanonicalDetail) {
+    fun write(detail: CanonicalDetail, firstPublishMs: Long? = null, totalMs: Long? = null) {
         val directory = CloudStreamApp.context?.cacheDir ?: return
         val snapshot = mapOf(
             "title" to detail.request.title,
@@ -15,6 +15,9 @@ internal object CanonicalDetailDiagnostics {
             "loadedBindings" to detail.loadedBindings,
             "rejectedBindings" to detail.rejectedBindings,
             "partial" to detail.incomplete,
+            "firstPublishMs" to firstPublishMs,
+            "totalMs" to totalMs,
+            "rejections" to detail.model.rejected.map { mapOf("provider" to it.binding.provider.name, "reason" to it.reason, "title" to it.title, "year" to it.year, "editions" to it.binding.editions.toList()) },
             "episodeCount" to detail.episodes.size,
             "numberedCoordinates" to detail.episodes.values.filter { it.season != null && it.episode != null }
                 .map { it.season to it.episode }.distinct().size,
