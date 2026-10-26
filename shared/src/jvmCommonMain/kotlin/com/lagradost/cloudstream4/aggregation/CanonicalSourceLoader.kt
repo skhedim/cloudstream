@@ -173,7 +173,8 @@ class CanonicalSourceLoader(
             val waiting = pendingBindings.get() + queued.get()
             val nativeWaiting = nativePending.get() + nativeQueued.get()
             val score = top?.let { SourceRanking.score(it.metadata, PlaybackSources.quality(it.link), preference) }
-            if (policy.shouldStart(top?.metadata, score, elapsed, nativeWaiting, waiting) && ready.compareAndSet(false, true)) {
+            val height = top?.let { SourceRanking.trustedHeight(PlaybackSources.quality(it.link), it.metadata.verifiedHeight) } ?: 0
+            if (policy.shouldStart(top?.metadata, score, elapsed, nativeWaiting, waiting, height) && ready.compareAndSet(false, true)) {
                 readyAfterMs = elapsed
                 onReady?.invoke()
             }

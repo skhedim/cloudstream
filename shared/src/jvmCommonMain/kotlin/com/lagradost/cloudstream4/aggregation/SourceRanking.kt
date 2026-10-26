@@ -90,12 +90,15 @@ object SourceRanking {
 class PlaybackPolicy(
     /** After this long, the best checked source in the viewer's language starts. */
     val maxWaitMs: Long = 8_000,
+    /** A verified 720p+ source in the viewer's language starts after this, leaving time for a VF. */
+    val goodSourceWaitMs: Long = 4_000,
 ) {
     /**
      * @param best the best published source so far (published sources passed their checks)
      * @param nativePending bindings in the viewer's language still loading or being checked
      */
-    fun shouldStart(best: PlaybackSourceMetadata?, bestScore: Double?, elapsedMs: Long, nativePending: Int, pending: Int): Boolean {
+    fun shouldStart(best: PlaybackSourceMetadata?, bestScore: Double?, elapsedMs: Long, nativePending: Int, pending: Int,
+        bestHeight: Int = best?.verifiedHeight ?: 0): Boolean {
         best ?: return false
         bestScore ?: return false
         if (pending == 0) return true
@@ -103,6 +106,8 @@ class PlaybackPolicy(
         return when {
             best.check == SourceCheck.Verified && best.version == SourceVersion.VF && bestScore >= SourceRanking.EXCELLENT_SCORE -> true
             native && nativePending == 0 && best.check != SourceCheck.Unchecked -> true
+            native && best.check == SourceCheck.Verified && elapsedMs >= goodSourceWaitMs &&
+                bestHeight >= 720 -> true
             native && elapsedMs >= maxWaitMs -> true
             else -> false
         }

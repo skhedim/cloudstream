@@ -366,8 +366,9 @@ class HomeViewModel : ViewModel() {
             }
             expandable.clear(); expandable.putAll(mapped)
             _page.value = Resource.Success(mapped)
-            val featured = rows.firstOrNull { it.shelf == HomeShelf.Top10 }?.cards
-            if (featured != null && finished >= requested) buildHero(featured, generation)
+            val featured = (rows.firstOrNull { it.shelf == HomeShelf.Top10 } ?: rows.firstOrNull { it.shelf == HomeShelf.Recent })?.cards
+            // Once every feed answered; trends arriving later rebuild it with this week's top works.
+            if (featured != null && finished >= requested) buildHero(featured, generation, rows.any { it.shelf == HomeShelf.Top10 })
             val count = rows.flatMap { it.cards }.distinctBy { it.media.id }.size
             _discoveryStatus.value = when {
                 finished < requested -> ctx.getString(R.string.home_updating_news)
@@ -400,9 +401,12 @@ class HomeViewModel : ViewModel() {
      * Featured works for the home hero: this week's most watched available works, with TMDB's
      * backdrop, logo and synopsis. Opening one goes through its canonical context.
      */
-    private fun buildHero(cards: List<AggregatedSearchResponse>, generation: Long) {
-        if (heroGeneration == generation) return
+    private var heroFromTrends = false
+
+    private fun buildHero(cards: List<AggregatedSearchResponse>, generation: Long, fromTrends: Boolean) {
+        if (heroGeneration == generation && (heroFromTrends || !fromTrends)) return
         heroGeneration = generation
+        heroFromTrends = fromTrends
         viewModelScope.launch(Dispatchers.IO) {
             val picks = cards.mapNotNull { card ->
                 card.media.externalIds.firstOrNull { it.namespace == com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbMovie ||

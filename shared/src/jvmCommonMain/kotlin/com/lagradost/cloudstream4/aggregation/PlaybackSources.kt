@@ -54,6 +54,8 @@ object PlaybackSources {
     private val vf = Regex("(?<![\\p{L}\\p{N}])(?:vf|vff|vfq|vfi|french|truefrench|français|francais)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
     private val vostfr = Regex("(?<![\\p{L}\\p{N}])(?:vostfr|vost)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
     private val subbed = Regex("(?<![\\p{L}\\p{N}])(?:subbed|sub)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+    /** French release convention: MULTi carries the French track plus the original one. */
+    private val multi = Regex("(?<![\\p{L}\\p{N}])multi(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
 
     /** The viewer's language, e.g. `fr`. */
     fun viewerLanguage(): String = AggregationPlatform.metadataLanguage().substringBefore('-').lowercase()
@@ -74,6 +76,7 @@ object PlaybackSources {
         // Generic dub/sub markers only prove VF/VOST(FR) on a provider in the viewer's language;
         // elsewhere "Subbed" is original audio with subtitles in that provider's language.
         return when {
+            native == true && multi.containsMatchIn(label) -> SourceVersion.VF
             native == true && (binding?.track == "Subbed" || subbed.containsMatchIn(label)) -> SourceVersion.VOST
             native == true && binding?.track == "Dubbed" -> SourceVersion.VF
             native == false -> SourceVersion.VO
@@ -108,7 +111,8 @@ object PlaybackSources {
             SourceVersion.VO -> "VO"
             else -> "Audio ?"
         }
-        val name = "$label · ${link.name} · ${binding.apiName}"
+        // The viewer sees versions and hosts, never which extension found the link.
+        val name = "$label · ${link.name}"
         val copy = if (link is ExtractorLinkPlayList) link.copy(name = name, quality = quality,
             headers = link.headers.toMap(), playlist = link.playlist.toList(), audioTracks = link.audioTracks.toList())
         else ExtractorLink(link.source, name, link.url, link.referer, quality,

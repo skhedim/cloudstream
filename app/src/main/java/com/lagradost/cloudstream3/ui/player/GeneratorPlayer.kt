@@ -298,8 +298,13 @@ class GeneratorPlayer : FullScreenPlayer() {
                 tracks.allVideoTracks.size > 1 || tracks.allAudioTracks.size > 1
         // Only set the preferred language if it is available.
         // Otherwise, it may give some users audio track init failed!
-        if (tracks.allAudioTracks.any { it.language == preferredAudioTrackLanguage }) {
-            player.setPreferredAudioTrack(preferredAudioTrackLanguage)
+        // Canonical playback defaults to the viewer's language for multi-audio streams (VF + VO).
+        val wanted = preferredAudioTrackLanguage
+            ?: if (::viewModel.isInitialized && viewModel.state.canonical) PlaybackSources.viewerLanguage() else null
+        val audio = tracks.allAudioTracks.firstOrNull { it.language == wanted }
+            ?: wanted?.let { language -> tracks.allAudioTracks.firstOrNull { it.language?.substringBefore('-') == language } }
+        if (audio != null) {
+            player.setPreferredAudioTrack(audio.language)
         }
         updatePlayerInfo()
     }
