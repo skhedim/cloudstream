@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream4.aggregation.SourceRanking
+import com.lagradost.cloudstream4.aggregation.PlaybackVerification
 import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
@@ -58,7 +59,7 @@ data class DisplayLink(
 
 /** Auto ranking score of a canonical link: language first unless the quality gap is very large. */
 fun canonicalScore(link: VideoLink?, preference: SourceVersion = SourceVersion.Auto): Double =
-    SourceRanking.score(PlaybackSources.version(link?.first), PlaybackSources.quality(link?.first), preference)
+    PlaybackVerification.score(link?.first, preference)
 
 /** Immutable state of all current links relevant to displaying the video */
 // @MustUseReturnValues

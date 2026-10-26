@@ -95,4 +95,19 @@ object StreamProbes {
         }
         return result
     }
+
+    /**
+     * Whether the stream answers at all, with its own headers: a 2-byte range request (the
+     * playlist itself for HLS). Used before replacing a source that is already playing.
+     */
+    suspend fun reachable(link: ExtractorLink, timeoutMs: Long = 3_000): Boolean = try {
+        withTimeoutOrNull(timeoutMs) {
+            val headers = link.getAllHeaders() +
+                if (link.type == ExtractorLinkType.M3U8) emptyMap() else mapOf("Range" to "bytes=0-1")
+            val response = app.get(link.url, headers = headers, timeout = timeoutMs / 1000 + 1)
+            response.body.close()
+            response.code in 200..299
+        } == true
+    } catch (cancelled: CancellationException) { throw cancelled }
+    catch (_: Throwable) { false }
 }

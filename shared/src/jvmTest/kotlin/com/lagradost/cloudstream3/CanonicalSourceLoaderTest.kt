@@ -279,4 +279,27 @@ high.m3u8"""
         assertEquals("Skipped", result.outcomes.single { it.provider == flaky.apiName }.status)
         ProviderHealth.reset()
     }
+
+    @Test fun streamsOfAnotherLengthAreNotTheSameWork() {
+        val movie = 114 * 60_000L
+        assertTrue(PlaybackVerification.sameWork(movie + 120_000, movie))
+        assertFalse(PlaybackVerification.sameWork(12 * 60_000L, movie))
+        assertFalse(PlaybackVerification.sameWork(3 * 60 * 60_000L, movie))
+        assertTrue(PlaybackVerification.matchesRuntime(movie, 114))
+        assertTrue(PlaybackVerification.matchesRuntime(movie + 20 * 60_000L, 114))
+        assertFalse(PlaybackVerification.matchesRuntime(10 * 60_000L, 114))
+        // No usable runtime: nothing to compare.
+        assertTrue(PlaybackVerification.matchesRuntime(10 * 60_000L, null))
+        assertTrue(PlaybackVerification.matchesRuntime(10 * 60_000L, 5_000))
+    }
+
+    @Test fun providersWhoseLinksFailInThePlayerRankLower() {
+        ProviderHealth.reset()
+        val good = PlaybackSources.copy(link("good", 1080), binding(), 0)
+        val fake = PlaybackSources.copy(link("fake", 2160), binding(), 1)
+        assertTrue(PlaybackVerification.score(fake) > PlaybackVerification.score(good))
+        repeat(2) { ProviderHealth.recordPlayback(PlaybackSources.metadata(fake)!!.provider, false) }
+        assertTrue(PlaybackVerification.score(fake) < PlaybackVerification.score(good))
+        ProviderHealth.reset()
+    }
 }

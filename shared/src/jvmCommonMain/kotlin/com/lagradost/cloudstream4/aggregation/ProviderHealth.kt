@@ -11,7 +11,14 @@ data class ProviderStats(
     val averageMs: Double = 0.0,
     val lastSuccess: Long = 0,
     val lastAttempt: Long = 0,
+    /** Links of this provider that played, or failed/turned out to be another video, in the player. */
+    val playbackSuccesses: Int = 0,
+    val playbackFailures: Int = 0,
 ) {
+    /** Up to two quality steps for a provider whose links keep failing in the player. */
+    @get:JsonIgnore val playbackPenalty: Double get() =
+        2.0 * playbackFailures / (playbackFailures + playbackSuccesses + 1.0)
+
     /** Repeatedly failing: worth trying only as a fallback, and at least every [RETRY_MS]. */
     fun unreliable(now: Long): Boolean = samples >= 3 && successRate < 0.25 && now - lastAttempt < RETRY_MS
 
@@ -60,6 +67,22 @@ object ProviderHealth {
         val all = state()
         all[provider] = (all[provider] ?: ProviderStats()).record(success, timeout, elapsedMs, System.currentTimeMillis())
     }
+
+    fun recordPlayback(provider: String, success: Boolean) {
+        synchronized(this) {
+            val all = state()
+            val stats = all[provider] ?: ProviderStats()
+            // Recent playback matters most: halve old evidence beyond 20 samples.
+            val scale = if (stats.playbackSuccesses + stats.playbackFailures >= 20) 2 else 1
+            all[provider] = stats.copy(
+                playbackSuccesses = stats.playbackSuccesses / scale + if (success) 1 else 0,
+                playbackFailures = stats.playbackFailures / scale + if (success) 0 else 1,
+            )
+        }
+        persist()
+    }
+
+    fun playbackPenalty(provider: String): Double = stats(provider).playbackPenalty
 
     fun persist() {
         val snapshot = synchronized(this) { state().toMap() }

@@ -130,7 +130,7 @@ class CanonicalSourceLoader(
         val scope = this
 
         fun bestScore(): Double? = synchronized(acquired) {
-            acquired.values.maxOfOrNull { SourceRanking.score(it.version, it.quality, preference) }
+            acquired.values.maxOfOrNull { PlaybackVerification.score(it.link, preference) }
         }
         fun checkReady() {
             if (ready.get()) return

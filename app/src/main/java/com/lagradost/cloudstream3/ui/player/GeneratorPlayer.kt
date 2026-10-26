@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.text.Spanned
 import android.util.Log
+import androidx.lifecycle.lifecycleScope
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -81,6 +82,9 @@ import com.lagradost.cloudstream3.ui.player.CustomDecoder.Companion.updateForced
 import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper.Companion.toSubtitleMimeType
 import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream4.aggregation.PlaybackPolicy
+import com.lagradost.cloudstream4.aggregation.PlaybackVerification
+import com.lagradost.cloudstream4.aggregation.ProviderHealth
+import com.lagradost.cloudstream4.aggregation.StreamProbes
 import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
@@ -193,6 +197,63 @@ class GeneratorPlayer : FullScreenPlayer() {
     /** The user picked a source or version for this episode: never replace it automatically. */
     private var userChoseSource = false
     private val canonicalPolicy = PlaybackPolicy()
+
+    /**
+     * A canonical source on trial: its duration must fit the source it replaced (or the movie's
+     * runtime). A dead or unrelated stream sends playback back to [fallback], or to the next source.
+     */
+    private data class SourceCheck(
+        val link: VideoLink, val fallback: VideoLink?, val playingMs: Long?, val runtimeMinutes: Int?,
+        /** Whether playback was running when the trial began; restored when falling back. */
+        val wasPlaying: Boolean = true,
+        var durationOk: Boolean = false, var startPosition: Long = -1,
+    )
+    private var sourceCheck: SourceCheck? = null
+    private var lastDuration: Pair<VideoLink, Long>? = null
+
+    private fun providerOf(link: VideoLink?): String? =
+        PlaybackSources.metadata(link?.first)?.let { it.providerId ?: it.provider }
+
+    /** Catalogue runtime of a movie, in minutes; episodes' provider runtimes are too unreliable. */
+    private fun expectedRuntime(): Int? =
+        (viewModel.state.generatorState?.response as? com.lagradost.cloudstream3.MovieLoadResponse)?.duration
+
+    private fun trial(link: VideoLink, fallback: VideoLink?, wasPlaying: Boolean = true) {
+        if (!viewModel.state.canonical) return
+        sourceCheck = SourceCheck(link, fallback,
+            lastDuration?.takeIf { fallback != null && it.first == fallback }?.second, expectedRuntime(), wasPlaying)
+    }
+
+    private fun checkCanonicalSource(position: Long, duration: Long) {
+        currentSelectedLink?.let { lastDuration = it to duration }
+        val check = sourceCheck ?: return
+        if (currentSelectedLink != check.link) { sourceCheck = null; return }
+        if (!check.durationOk) {
+            val plausible = check.playingMs?.let { PlaybackVerification.sameWork(duration, it) }
+                ?: PlaybackVerification.matchesRuntime(duration, check.runtimeMinutes)
+            if (!plausible) return rejectCanonicalSource("duration ${duration / 1000}s")
+            check.durationOk = true
+            check.startPosition = position
+        }
+        if (position - check.startPosition >= PlaybackVerification.CONFIRMED_AFTER_MS) {
+            providerOf(check.link)?.let { ProviderHealth.recordPlayback(it, true) }
+            sourceCheck = null
+        }
+    }
+
+    private fun rejectCanonicalSource(reason: String) {
+        val check = sourceCheck ?: return
+        sourceCheck = null
+        viewModel.modifyState { addError(check.link) }
+        providerOf(check.link)?.let { ProviderHealth.recordPlayback(it, false) }
+        if (com.lagradost.cloudstream3.BuildConfig.DEBUG)
+            CanonicalSourceDiagnostics.selection("rejected", check.link.first, viewModel.state.links.size, note = reason)
+        Log.w(TAG, "Canonical source rejected ($reason): ${check.link.first?.name}")
+        when {
+            check.fallback != null -> loadLink(check.fallback, sameEpisode = true, autoPlay = check.wasPlaying)
+            else -> nextMirror()
+        }
+    }
     private var isNextEpisode: Boolean = false // this is used to reset the watch time
 
     private var preferredAutoSelectSubtitles: String? = null // null means do nothing, "" means none
@@ -1627,6 +1688,12 @@ class GeneratorPlayer : FullScreenPlayer() {
     }
 
     override fun playerError(exception: Throwable) {
+        sourceCheck?.takeIf { it.link == currentSelectedLink }?.let { check ->
+            // An automatic upgrade that fails returns to the source that was playing.
+            if (check.fallback != null) return rejectCanonicalSource("error ${exception::class.simpleName}")
+            providerOf(check.link)?.let { ProviderHealth.recordPlayback(it, false) }
+            sourceCheck = null
+        }
         currentSelectedLink?.let { link ->
             viewModel.modifyState { this.addError(link) }
         }
@@ -1676,6 +1743,8 @@ class GeneratorPlayer : FullScreenPlayer() {
      * Canonical playback starts early; once every provider has answered, switch silently to a
      * clearly better source (same position, same play/pause state) unless the user chose one.
      */
+    private var upgradeJob: kotlinx.coroutines.Job? = null
+
     private fun upgradeCanonicalSource() {
         if (!viewModel.state.canonical) return
         val ranking = viewModel.state.sortLinks(currentQualityProfile)
@@ -1685,13 +1754,28 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
         if (userChoseSource) return note("user choice")
         val current = currentSelectedLink ?: return note("nothing playing")
-        val best = ranking.firstOrNull { it.shouldUseLink }?.link ?: return note("no eligible link")
-        if (best == current) return note("already best")
         val state = viewModel.state
-        if (!canonicalPolicy.shouldUpgrade(state.canonicalScore(current), state.canonicalScore(best))) return note("gain too small")
-        Log.i(TAG, "Upgrading canonical source to ${best.first?.name}")
-        if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.selection("upgrade", best.first, viewModel.state.links.size)
-        loadLink(best, sameEpisode = true, autoPlay = player.getIsPlaying())
+        val candidates = ranking.filter { it.shouldUseLink && it.link != current && it.link.first != null &&
+            canonicalPolicy.shouldUpgrade(state.canonicalScore(current), state.canonicalScore(it.link)) }.take(3)
+        if (candidates.isEmpty()) return note("no clearly better source")
+        upgradeJob?.cancel()
+        upgradeJob = lifecycleScope.launch {
+            // Only switch to a source that answers; a dead link would interrupt playback.
+            val target = candidates.firstOrNull { candidate ->
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    StreamProbes.reachable(candidate.link.first!!)
+                }.also { ok -> if (!ok) {
+                    viewModel.modifyState { addError(candidate.link) }
+                    providerOf(candidate.link)?.let { ProviderHealth.recordPlayback(it, false) }
+                } }
+            }?.link ?: return@launch note("better sources unreachable")
+            if (currentSelectedLink != current || userChoseSource) return@launch note("selection changed")
+            Log.i(TAG, "Upgrading canonical source to ${target.first?.name}")
+            if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.selection("upgrade", target.first, viewModel.state.links.size)
+            val wasPlaying = player.getIsPlaying()
+            loadLink(target, sameEpisode = true, autoPlay = wasPlaying)
+            trial(target, current, wasPlaying)
+        }
     }
 
     private fun startPlayer() {
@@ -1714,6 +1798,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (com.lagradost.cloudstream3.BuildConfig.DEBUG && viewModel.state.canonical)
             CanonicalSourceDiagnostics.selection("start", firstAvailableLink.first, viewModel.state.links.size, links)
         loadLink(firstAvailableLink, false)
+        trial(firstAvailableLink, null)
         showPlayerMetadata()
     }
 
@@ -1800,6 +1885,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
 
         loadLink(nextLink.link, true)
+        trial(nextLink.link, null)
     }
 
     override fun onDestroy() {
@@ -1818,6 +1904,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         if ((currentMeta as? ResultEpisode)?.tvType == TvType.NSFW) return
 
         if (duration <= 0L) return // idk how you achieved this, but div by zero crash
+        checkCanonicalSource(position, duration)
         if (!hasRequestedStamps) {
             hasRequestedStamps = true
             val fetchStamps = context?.let { ctx ->
