@@ -5,7 +5,6 @@ import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream4.domain.media.CanonicalMedia
 import com.lagradost.cloudstream4.domain.media.MediaAggregator
 import com.lagradost.cloudstream4.domain.media.MediaCandidate
-import com.lagradost.cloudstream4.domain.media.ProviderBinding
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 
 /** A presentation adapter only. Never sent to an extension or persisted as a provider response. */
@@ -27,9 +26,4 @@ fun SearchMediaMapper.aggregate(
     aggregator: MediaAggregator,
     results: List<Pair<ProviderKey, SearchResponse>>,
     candidates: List<MediaCandidate> = results.map { (provider, response) -> candidate(provider, response) },
-): List<SearchResponse> {
-    val originals = results.associate { (provider, response) -> ProviderBinding(provider, response.url) to response }
-    return aggregator.aggregate(candidates).map { media ->
-        AggregatedSearchResponse(media, media.bindings.map { originals.getValue(it) })
-    }
-}
+): List<SearchResponse> = group(aggregator, results, candidates).map { AggregatedSearchResponse(it.media, it.responses) }

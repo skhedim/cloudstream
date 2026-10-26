@@ -5,10 +5,15 @@ import com.lagradost.cloudstream3.MovieSearchResponse
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.TvSeriesSearchResponse
 import com.lagradost.cloudstream3.TvType
+import com.lagradost.cloudstream4.domain.media.CanonicalMedia
+import com.lagradost.cloudstream4.domain.media.MediaAggregator
 import com.lagradost.cloudstream4.domain.media.MediaCandidate
 import com.lagradost.cloudstream4.domain.media.MediaKind
 import com.lagradost.cloudstream4.domain.media.ProviderBinding
 import com.lagradost.cloudstream4.domain.media.ProviderKey
+
+/** One canonical search result and the exact provider responses it groups (rank order). */
+data class CanonicalSearchCard(val media: CanonicalMedia, val responses: List<SearchResponse>)
 
 object SearchMediaMapper {
     // SearchResponse.id remains provider-defined; canonical hosts/audited adapters supply IDs.
@@ -59,6 +64,18 @@ object SearchMediaMapper {
 
     /** An anchored season suffix is an alias of the show, never identity evidence by itself. */
     fun withoutSeasonSuffix(title: String): String = title.replace(seasonSuffix, "").trim()
+
+    /** Input is already filtered and interleaved in a stable provider/rank order. */
+    fun group(
+        aggregator: MediaAggregator,
+        results: List<Pair<ProviderKey, SearchResponse>>,
+        candidates: List<MediaCandidate> = results.map { (provider, response) -> candidate(provider, response) },
+    ): List<CanonicalSearchCard> {
+        val originals = results.associate { (provider, response) -> ProviderBinding(provider, response.url) to response }
+        return aggregator.aggregate(candidates).map { media ->
+            CanonicalSearchCard(media, media.bindings.map { originals.getValue(it) })
+        }
+    }
 
     fun kind(type: TvType?): MediaKind = when (type) {
         TvType.Movie -> MediaKind.Movie

@@ -143,6 +143,8 @@ import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -466,12 +468,14 @@ class ResultViewModel2 : ViewModel() {
     private var detailLoadJob: Job? = null
     override fun onCleared() {
         detailLoadJob?.cancel()
+        prefetchJob?.cancel()
         currentLoadLinkJob?.cancel()
         super.onCleared()
     }
     var EPISODE_RANGE_SIZE: Int = 20
     fun clear() {
         detailLoadJob?.cancel()
+        prefetchJob?.cancel()
         canonicalDetail = null
         currentResponse = null
         _page.postValue(null)
@@ -592,6 +596,8 @@ class ResultViewModel2 : ViewModel() {
 
     companion object {
         const val TAG = "RVM2"
+        /** A canonical page is shown after this delay with what has loaded, if a whole-show page is in. */
+        const val CANONICAL_FIRST_PUBLISH_MS = 4_000L
         //private const val EPISODE_RANGE_SIZE = 20
         //private const val EPISODE_RANGE_OVERLOAD = 30
 
@@ -2402,7 +2408,8 @@ class ResultViewModel2 : ViewModel() {
         })
         if (loadResponse is EpisodeResponse) {
             _seasonSelections.postValue(seasonsSelection.map { seasonNumber ->
-                (if (canonicalDetail != null && seasonNumber == -1) txt(R.string.canonical_unlocated_episodes)
+                (if (canonicalDetail != null && seasonNumber == CanonicalDetail.UNLOCATED_SEASON) txt(R.string.canonical_unlocated_episodes)
+                else if (canonicalDetail != null && seasonNumber == CanonicalDetail.ABSOLUTE_SEASON) txt(R.string.canonical_absolute_episodes)
                 else loadResponse.seasonNames.getSeasonTxt(seasonNumber)) to seasonNumber
             })
         }
@@ -2642,6 +2649,93 @@ class ResultViewModel2 : ViewModel() {
         )
     }
 
+    /**
+     * Opens the canonical page as soon as a representative binding and enough of the others are
+     * loaded (or after [CANONICAL_FIRST_PUBLISH_MS]), then republishes once with every binding.
+     * The selected season/range survive the update. Sources of the likely next episode are then
+     * prefetched so playback starts from cache.
+     */
+    private suspend fun loadCanonical(
+        activity: Activity?, request: CanonicalDetailRequest, showFillers: Boolean,
+        autostart: AutoResume?, loadTrailers: Boolean,
+    ) = kotlinx.coroutines.coroutineScope {
+        val pinned = CanonicalDetailStore.pin(request)
+        val publishLock = kotlinx.coroutines.sync.Mutex()
+        var published = 0
+        var latest: List<com.lagradost.cloudstream4.aggregation.LoadedDetail> = emptyList()
+        var firstPublished = false
+
+        suspend fun publish(snapshot: List<com.lagradost.cloudstream4.aggregation.LoadedDetail>, final: Boolean) = publishLock.withLock {
+            if (!final && (firstPublished || snapshot.size <= published)) return@withLock
+            if (final && firstPublished && snapshot.size == published) return@withLock
+            val canonical = CanonicalDetail.create(pinned, snapshot) ?: return@withLock
+            ensureActive()
+            canonicalDetail = canonical
+            val response = canonical.response
+            val repo = APIRepository(canonical.representative.api)
+            currentRepo = repo
+            val mainId = response.getId()
+            if (!firstPublished) {
+                preferDubStatus = getDub(mainId) ?: preferDubStatus
+                preferStartEpisode = getResultEpisode(mainId)
+                preferStartSeason = getResultSeason(mainId) ?: 1
+                setKey(DOWNLOAD_HEADER_CACHE, mainId.toString(),
+                    DownloadObjects.DownloadHeaderCached(apiName = response.apiName, url = response.url,
+                        type = response.type, name = response.name, poster = response.posterUrl,
+                        id = mainId, cacheTime = System.currentTimeMillis()))
+                if (loadTrailers) loadTrailers(response)
+            }
+            firstPublished = true
+            published = snapshot.size
+            postSuccessful(response, mainId, repo, true, showFillers)
+        }
+
+        val started = System.currentTimeMillis()
+        val early = launch {
+            delay(CANONICAL_FIRST_PUBLISH_MS)
+            if (latest.any { it.binding.editions.isEmpty() }) publish(latest, false)
+        }
+        val details = CanonicalDetailLoader().load(pinned, onProgress = { snapshot ->
+            latest = snapshot
+            val hasBase = snapshot.any { it.binding.editions.isEmpty() }
+            // Most bindings in: show the page now rather than wait for the slowest providers.
+            if (hasBase && snapshot.size * 10 >= pinned.bindings.size * 6) publish(snapshot, false)
+        })
+        early.cancel()
+        ensureActive()
+        publish(details, true)
+        val canonical = canonicalDetail
+        if (canonical == null || !firstPublished) {
+            _page.postValue(Resource.Failure(false,
+                context?.getString(R.string.canonical_detail_failed) ?: "Unable to load this title"))
+            return@coroutineScope
+        }
+        CanonicalDetailStore.remember(canonical.request)
+        Log.i(TAG, "Canonical detail: ${canonical.loadedBindings}/${canonical.requestedBindings} bindings in " +
+            "${System.currentTimeMillis() - started} ms, ${canonical.rejectedBindings} rejected")
+        if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
+            com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical)
+        }
+        handleAutoStart(activity, autostart)
+        prefetchCanonicalSources()
+    }
+
+    private var prefetchJob: Job? = null
+
+    /** Resume episode, else the first episode of the selected range (or the movie). */
+    private fun prefetchCanonicalSources() {
+        prefetchJob?.cancel()
+        val target = resume()?.result
+            ?: currentEpisodes[currentIndex]?.firstOrNull { it.episode >= (currentRange?.startEpisode ?: 0) }
+            ?: currentEpisodes.values.firstOrNull()?.firstOrNull()
+        val bindings = target?.sourceBindings?.takeIf { it.isNotEmpty() } ?: return
+        prefetchJob = ioSafe {
+            // Let the page and its images load first.
+            delay(1_500)
+            com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader().prefetch(bindings)
+        }
+    }
+
     fun load(
         activity: Activity?,
         url: String,
@@ -2666,35 +2760,7 @@ class ResultViewModel2 : ViewModel() {
                 runCatching { parseJson<CanonicalDetailRequest>(it) }.getOrNull()
             } ?: CanonicalDetailStore.find(apiName, url)
             if (request != null) {
-                val pinned = CanonicalDetailStore.pin(request)
-                val details = CanonicalDetailLoader().load(pinned)
-                ensureActive()
-                val canonical = CanonicalDetail.create(pinned, details)
-                ensureActive()
-                if (canonical == null) {
-                    _page.postValue(Resource.Failure(false,
-                        context?.getString(R.string.canonical_detail_failed) ?: "Unable to load this title"))
-                    return@ioSafe
-                }
-                canonicalDetail = canonical
-                CanonicalDetailStore.remember(canonical.request)
-                val response = canonical.response
-                currentRepo = APIRepository(canonical.representative.api)
-                val mainId = response.getId()
-                preferDubStatus = getDub(mainId) ?: preferDubStatus
-                preferStartEpisode = getResultEpisode(mainId)
-                preferStartSeason = getResultSeason(mainId) ?: 1
-                setKey(DOWNLOAD_HEADER_CACHE, mainId.toString(),
-                    DownloadObjects.DownloadHeaderCached(apiName = response.apiName, url = response.url,
-                        type = response.type, name = response.name, poster = response.posterUrl,
-                        id = mainId, cacheTime = System.currentTimeMillis()))
-                if (loadTrailers) loadTrailers(response)
-                postSuccessful(response, mainId, APIRepository(canonical.representative.api), true, showFillers)
-                ensureActive()
-                if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
-                    com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical)
-                }
-                handleAutoStart(activity, autostart)
+                loadCanonical(activity, request, showFillers, autostart, loadTrailers)
                 return@ioSafe
             }
 
