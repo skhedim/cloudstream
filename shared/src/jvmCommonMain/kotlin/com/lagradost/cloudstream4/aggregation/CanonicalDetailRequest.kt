@@ -36,6 +36,17 @@ data class CanonicalDetailRequest(
     /** When other providers were last searched for this work ([CanonicalBindingCompleter]). */
     val completedAt: Long? = null,
 ) {
+    /**
+     * Keeps the bindings of [providers] (the extensions enabled now): a saved context can name
+     * extensions the user has since disabled or removed. Unchanged when nothing would remain.
+     */
+    fun restrictedTo(providers: Collection<RegisteredProvider>): CanonicalDetailRequest {
+        val ids = providers.map { it.id }.toSet()
+        val names = providers.map { it.key.name }.toSet()
+        val kept = bindings.filter { it.providerId in ids || it.provider.name in names }
+        return if (kept.isEmpty() || kept.size == bindings.size) this else copy(bindings = kept)
+    }
+
     companion object {
         fun from(media: CanonicalMedia, title: String = media.title,
             registry: SourceRegistry = AggregationPlatform.registry): CanonicalDetailRequest {

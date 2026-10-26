@@ -35,7 +35,8 @@ import kotlin.math.abs
 /**
  * Measures installed extensions on a reference corpus (assets/provider-survey-corpus.json):
  * availability, identity, link count, reachability, verified quality, language and real stream
- * duration versus the TMDB runtime. Opt-in: `-e plugins Movix,Frembed,...` and the class filter.
+ * duration versus the TMDB runtime. Opt-in: `-e plugins Movix,Frembed,...` and the class filter;
+ * `-e apis` narrows to providers by name.
  * Results: files/provider-survey/<run>.json (no payloads or URLs, only hosts).
  */
 @RunWith(AndroidJUnit4::class)
@@ -61,12 +62,10 @@ class ProviderSurveyInstrumentedTest {
         val run = args.getString("run") ?: System.currentTimeMillis().toString()
         val context = ApplicationProvider.getApplicationContext<Context>()
         val installed = PluginManager.getPluginsOnline()
-        // The catalogue normally refuses extensions outside its reviewed list: lift that for the survey only.
-        val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(context)
-        val recommendedOnly = prefs.getBoolean(com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.RECOMMENDED_ONLY, true)
-        prefs.edit().putBoolean(com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.RECOMMENDED_ONLY, false).commit()
+        // The catalogue normally refuses extensions outside its reviewed list: lift that in memory only.
+        com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.surveyAllProviders = true
         try { surveyLoaded(context, wanted, only, run, installed) } finally {
-            prefs.edit().putBoolean(com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.RECOMMENDED_ONLY, recommendedOnly).commit()
+            com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.surveyAllProviders = false
         }
     }
 
@@ -81,8 +80,12 @@ class ProviderSurveyInstrumentedTest {
                     .onFailure { Log.e(TAG, "Load failed $name", it) }
             }
         }
+        // `-e apis CineStream` keeps one provider of a multi-provider plugin, so a crash only loses that one.
+        val names = InstrumentationRegistry.getArguments().getString("apis")?.split(',')?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
         val apis = APIHolder.apis.withLock { APIHolder.apis.toList() }
             .filter { api -> wanted.any { api.sourcePlugin?.contains(it, true) == true } }
+            .filter { api -> names == null || names.any { it.equals(api.name, true) } }
         Log.i(TAG, "Surveying ${apis.map { it.name }}")
         val works = corpus().let { if (only != null) it.take(only) else it }
         val out = File(context.filesDir, "provider-survey").apply { mkdirs() }.resolve("$run.json")

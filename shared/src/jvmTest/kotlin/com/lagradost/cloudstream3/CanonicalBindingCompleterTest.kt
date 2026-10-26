@@ -56,4 +56,16 @@ class CanonicalBindingCompleterTest {
         assertFalse(ProviderHealth.searchUsable(registered(general).id))
         ProviderHealth.reset()
     }
+
+    @Test fun savedBindingsOfDisabledExtensionsAreNotLoaded() {
+        val other = api("Other"); val removed = api("Removed")
+        val saved = request.copy(bindings = request.bindings + listOf(
+            DetailBinding(ProviderKey(other.name, "https://moved.example"), "/lion", providerId = ProviderIds.of(other)),
+            DetailBinding(ProviderKey(removed.name, removed.mainUrl), "/lion")))
+        // Matched by stable ID even after a domain change, or by name for contexts saved without IDs.
+        assertEquals(listOf("Home", "Other"), saved.restrictedTo(listOf(registered(home), registered(other)))
+            .bindings.map { it.provider.name })
+        // Nothing enabled: the context stays as it was, so the page can report what is missing.
+        assertEquals(saved, saved.restrictedTo(emptyList()))
+    }
 }

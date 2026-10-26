@@ -12,10 +12,15 @@ object PlaybackVerification {
     fun sameWork(actualMs: Long, playingMs: Long): Boolean =
         actualMs <= 0 || playingMs <= 0 || abs(actualMs - playingMs) <= maxOf(playingMs / 10, 180_000L)
 
-    /** A movie's catalogue runtime is approximate (credits, versions): 30 % / 10 min. */
+    /**
+     * A movie's catalogue runtime is approximate (credits, versions): 30 % / 10 min. Without a
+     * runtime, a stream shorter than [StreamChecks.MIN_SECONDS] is still not a movie or an episode.
+     */
     fun matchesRuntime(actualMs: Long, runtimeMinutes: Int?): Boolean {
-        val expected = (runtimeMinutes ?: return true).takeIf { it in 20..400 }?.let { it * 60_000L } ?: return true
-        return actualMs <= 0 || abs(actualMs - expected) <= maxOf(expected * 3 / 10, 600_000L)
+        if (actualMs <= 0) return true
+        val expected = runtimeMinutes?.takeIf { it in 20..400 }?.let { it * 60_000L }
+            ?: return actualMs >= StreamChecks.MIN_SECONDS * 1000
+        return abs(actualMs - expected) <= maxOf(expected * 3 / 10, 600_000L)
     }
 
     /** A source counts as played once this much of it has been watched with a plausible duration. */

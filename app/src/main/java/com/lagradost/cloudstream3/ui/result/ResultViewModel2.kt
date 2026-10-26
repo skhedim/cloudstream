@@ -2658,7 +2658,15 @@ class ResultViewModel2 : ViewModel() {
         activity: Activity?, request: CanonicalDetailRequest, showFillers: Boolean,
         autostart: AutoResume?, loadTrailers: Boolean,
     ) = kotlinx.coroutines.coroutineScope {
-        var pinned = CanonicalDetailStore.pin(request)
+        val available = context?.let { ctx ->
+            com.lagradost.cloudstream3.ui.search.SearchScope.availableProviders(ctx, true)
+        }.orEmpty().map { api ->
+            com.lagradost.cloudstream4.aggregation.RegisteredProvider(
+                com.lagradost.cloudstream4.aggregation.ProviderIds.of(api),
+                com.lagradost.cloudstream4.domain.media.ProviderKey(api.name, api.mainUrl), api)
+        }
+        // Saved contexts can name extensions that are no longer enabled: never wait for those.
+        var pinned = CanonicalDetailStore.pin(request).restrictedTo(available)
         val publishLock = kotlinx.coroutines.sync.Mutex()
         var published = 0
         var latest: List<com.lagradost.cloudstream4.aggregation.LoadedDetail> = emptyList()
@@ -2696,14 +2704,7 @@ class ResultViewModel2 : ViewModel() {
         // usually come from one catalogue), at most once a day per work.
         val completion = if (pinned.completedAt?.let { System.currentTimeMillis() - it < 24 * 60 * 60_000L } == true) null
             else async(kotlinx.coroutines.Dispatchers.IO) {
-                val providers = context?.let { ctx ->
-                    com.lagradost.cloudstream3.ui.search.SearchScope.availableProviders(ctx, true)
-                }.orEmpty().map { api ->
-                    com.lagradost.cloudstream4.aggregation.RegisteredProvider(
-                        com.lagradost.cloudstream4.aggregation.ProviderIds.of(api),
-                        com.lagradost.cloudstream4.domain.media.ProviderKey(api.name, api.mainUrl), api)
-                }
-                com.lagradost.cloudstream4.aggregation.CanonicalBindingCompleter().complete(pinned, providers)
+                com.lagradost.cloudstream4.aggregation.CanonicalBindingCompleter().complete(pinned, available)
             }
         val early = launch {
             delay(CANONICAL_FIRST_PUBLISH_MS)

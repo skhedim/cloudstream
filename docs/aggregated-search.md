@@ -18,8 +18,7 @@ seasons/episodes are combined. Episode bindings preserve each extension’s opaq
 Each numbered episode is shown once, with VF/VOST attached to its source bindings.
 Language/version selection is in the player's **Tracks → Version** menu, alongside
 native embedded audio/video tracks. Providers contribute links through their unchanged
-`loadLinks()` API; the app selects the best eligible quality in the selected version.
-Measured reliability/speed scoring and a dedicated multi-provider retry policy remain future work.
+`loadLinks()` API; the app checks and ranks the links (see *Sources and playback (v2)*).
 New canonical playback/favourite identities are independent of the provider URL.
 Old upstream history is retained but is not automatically migrated. Milestone-3 canonical
 version-specific episode progress is consolidated when those episodes are opened.
@@ -181,7 +180,11 @@ dispatcher off the UI thread and published as a `StateFlow`. Additions:
 - show references include season posters, and alternate posters of seasons 1–2 for
   unresolved whole-show entries (8 season requests per query);
 - a candidate whose own IDs are shared with several groups merges them when no ID, family,
-  year or edition contradicts it. Title evidence never bridges groups.
+  year or edition contradicts it. Title evidence never bridges groups;
+- cards are ranked by relevance (`SearchRelevance`): the exact title (accents, punctuation and
+  sequel numbers folded), then titles starting with the query, then containing it. Exact titles
+  offered by more providers lead; otherwise the providers' order is kept, so results no longer
+  depend on which provider answered first.
 
 ### Detail
 `CanonicalDetailLoader` loads 6 bindings at once, at most 2 per provider, and reports progress.
@@ -195,29 +198,91 @@ Flat, season-less, unscoped episode lists use absolute keys (`abs:eN`) that merg
 other absolute lists; when no seasoned list exists they are shown as season 1, otherwise in an
 "Absolute numbering" section. Absolute numbers are never converted to seasons.
 
-### Sources and playback
-- Sources are published as they arrive (6 bindings at once, 2 per provider). `PlaybackPolicy`
-  signals readiness 2.5 s after the first playable source, or at once for VF with a verified
-  1080p; the player starts then. Acquisition continues for upgrades and fallbacks.
-- Auto ranking score = quality tier (480p 1, 720p 2, 1080p 3, 1440p 3.5, 2160p 4, unreported
-  1.5) + version bonus (VF 1.95, VOST 0.9). One quality step does not override the language;
-  two do. A version remembered from an earlier playback is worth 2.5 (other versions get half
-  their bonus); a version chosen in the player for the current playback stays a hard filter.
-- `Subbed`/`Dubbed` tracks only prove VOST/VF on French-language providers.
-- Unknown HLS facts are read from the master playlist with the link's own headers
-  (`StreamProbe`: resolution, French audio → VF, French subtitles only → VOST). Extension
-  labels always win.
-- When acquisition ends, the player switches silently to a source at least 0.75 better unless
-  the user chose one. The target must answer a 2-byte request; on trial, its duration must
-  match the replaced source (10 % / 3 min) or a movie's runtime (30 % / 10 min). An error or
-  mismatch returns to the previous source at the same position and play state.
-- `ProviderHealth` (persisted) records resolve success, timeouts, latency and playback
-  successes/failures. It orders the queue; providers whose links fail in the player lose up
-  to two quality steps; repeatedly failing providers (≥ 3 attempts, < 25 % success) only run
-  as a fallback when nothing reliable was found, are skipped once playback could start, and
-  are retried after six hours.
-- Source prefetch on the detail page is disabled: some extensions (AfterDark) open
-  verification dialogs from `loadLinks()`.
+### Enabled extensions only
+Saved contexts only load the bindings of extensions that are enabled now
+(`CanonicalDetailRequest.restrictedTo`): disabling or removing an extension never leaves the page
+waiting for it.
+
+### Completion of single-catalogue cards
+A card found in one catalogue only (home, recommendations) is completed on its first opening:
+`CanonicalBindingCompleter` searches the other enabled providers (6 at once, 8 s per search,
+12 s in total) with the canonical title, then the original title. It is strict: a shared ID, or
+the same title, family and a known year at most one apart, with no contradicting ID; season
+entries need a shared ID. Found pages are verified again by the builder. `completedAt` limits
+this to once a day per work.
+
+### Sources and playback (v2)
+Every source gets a **version** and a **check** before it can win:
+- Version: VF, VOST, unspecified, or VO. VO means a provider outside the viewer's language
+  that does not label its links: it is a fallback only and never beats a native source.
+  `Subbed`/`Dubbed`/`MULTI` prove VOST/VF only on French-language providers.
+- Check: `StreamInspector` downloads the HLS manifest (or the file headers) with the link's own
+  headers, follows the first variant and adds up segment durations (playlists over 4 MB or
+  truncated count as unknown duration). `StreamChecks` compares it with the TMDB runtime
+  (`RuntimeCatalog`): a movie must last 0.75–1.45× the runtime, an episode 0.5–2.2×, and any
+  stream at least 4 min; files without a playlist need 120 kbit/s on average (25 MB without a
+  runtime). Failures are rejected (recorded in `rejections`); 401/403/429 answers stay
+  `Unchecked` because the player may be allowed where we are not. Results: `Verified`,
+  `Alive` (reachable, duration unknown) or `Unchecked`.
+- Inspection runs on 4 workers in score order, at most 30 per playback, cached for 20 min.
+
+Score = quality tier (480p 1, 720p 2, 1080p 3, 1440p 3.5, 2160p 4, unreported 1.5) + version
+bonus (VF 1.95, VOST 0.9, VO −10) + check (Verified 0, Alive −0.3, Unchecked −0.6) − provider
+playback penalty. Declared resolutions above 1080p count as 1080p unless the manifest confirms
+them (fake "4K" labels are typical of scam links). A remembered version is worth 2.5 (others half
+their bonus); a version chosen in the player for the current playback is a hard filter.
+
+`PlaybackPolicy` starts playback at once on a verified VF of 720p or more, after 4 s on a verified
+native 720p+, when no native binding is pending, and in any case after 8 s with the best native
+source. VO only starts once every native binding failed. Acquisition continues afterwards
+(6 bindings at once, 2 per provider, 15 s per binding, 30 s in total).
+
+The player switches silently, without a dialog, only to a `Verified`, non-VO, reachable source
+at least 0.75 better, unless the user chose a source. On trial its duration must match the
+replaced source or the runtime; an error or mismatch returns to the previous source at the same
+position and play state, and counts as a playback failure for that provider. French audio tracks
+are selected by default.
+
+`ProviderHealth` (persisted) records resolve success, timeouts, latency and playback results. It
+orders the queue; providers whose links fail in the player lose up to two quality steps;
+repeatedly failing providers (≥ 3 attempts, < 25 % success) only run as a fallback, are skipped
+once playback could start and are retried after 6 h. A provider whose search returned nothing
+12 times in a row while others found the work rests for 12 h. Source prefetch on the detail page
+is disabled: some extensions (AfterDark) open verification dialogs from `loadLinks()`.
+
+### Discovery home (v2)
+- Feeds and recommendations come only from providers in the viewer's language; foreign
+  catalogues, when enabled, only add sources to works that exist natively.
+- Shelves: **Top 10** (this week's TMDB trends, movies and shows interleaved, restricted to
+  works a provider offers), **Latest additions**, **Trending**, **Films for you**,
+  **Series for you**, then the genre rows. `DiscoveryCatalog` never creates cards on its own.
+- The hero shows the first Top 10 work (else the first recent one) with TMDB backdrop, title
+  logo, overview, rating, year, runtime and genres in the viewer's language; the hero and
+  Continue watching sit at the top of the page.
+
+### Recommended extensions (survey)
+`ProviderSurveyInstrumentedTest` (androidTest) measures each installed extension on 47 TMDB
+titles (movies and series, French and international, old and recent): search hit, detail
+match, links, declared and measured quality, and duration against TMDB. The recommended
+catalogue (`CatalogCuration`) follows the results:
+
+| Extension | Found | Playable | Titles only it offers | Kept |
+|---|---|---|---|---|
+| Movix | 47/47 | 100 % (all ≥ 720p) | 6 | yes |
+| Frembed (yorik100) | 98 % | 83 % | 0 | yes, backup |
+| Xalaflix | 85 % | 72 % | 0 | yes, backup |
+| AfterDark, Frembed (French repo) | 100 % | — (no links) | — | yes, catalogue and home rows |
+| FsMirrorLol | 74 % | 64 % (2 titles ≥ 720p) | 0 | no |
+
+FsMirrorLol's pages also fail verification since its site changed (movies are declared as
+series, series pages have no title). Coflix, FrenchAnime, Flemmix, Yakmov, Un jour Un Film, Wiflix,
+Arte and ReelFren found none of the 47 titles. None of these is recommended. Legitimate French streams matched the TMDB
+runtime in every case but one. Only French catalogues are recommended for now; original-version
+(CineStream…) and anime extensions are not evaluated yet. The VO rules above stay in the engine
+for providers the user enables.
+
+The survey lifts the reviewed-only filter in memory (`CatalogPreferences.surveyAllProviders`),
+never in the saved preferences, so a crashing extension cannot leave every extension enabled.
 
 ### Measured on the Shield (2026-10-26, French extensions)
 | | Before | After |
@@ -230,7 +295,7 @@ other absolute lists; when no seasoned list exists they are shown as season 1, o
 
 Debug builds also write `cache/canonical-playback.json` (start, upgrade decisions, rejections
 and the ranking the player saw) and add timings/rejections to `canonical-detail.json` and
-readiness/probe counts to `canonical-sources.json`.
+readiness, checks and rejections to `canonical-sources.json`.
 
 ## Boundaries (before the shared engine)
 

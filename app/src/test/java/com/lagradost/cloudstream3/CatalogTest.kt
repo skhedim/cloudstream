@@ -73,9 +73,13 @@ class CatalogTest {
     @Test fun recommendedDefaultRequiresReviewedPackageAndOriginButExtendedVideoRemainsAvailable() {
         val selection = CatalogSelection(setOf("en"), setOf(TvType.Movie))
         assertFalse(selection.accepts(plugin("French", "en")))
-        assertFalse(selection.accepts(plugin("CineStream", "en")))
-        assertTrue(selection.accepts(plugin("CineStream", "en", url =
+        // Original-version catalogues are not reviewed yet.
+        assertFalse(selection.accepts(plugin("CineStream", "en", url =
             "https://raw.githubusercontent.com/SaurabhKaperwan/CSX/builds/CineStream.cs3")))
+        val french = CatalogSelection(setOf("fr"), setOf(TvType.Movie))
+        assertFalse(french.accepts(plugin("Movix", "fr")))
+        assertTrue(french.accepts(plugin("Movix", "fr", url =
+            "https://raw.githubusercontent.com/kraptor123/cs-karma/builds/Movix.cs3")))
         assertTrue(selection.copy(recommendedOnly = false).accepts(plugin("GenericVideo", "en")))
     }
     @Test fun intrusiveRatingGamesAndUtilitiesCannotReenterEvenWithMovieTagsOrExtendedSelection() {

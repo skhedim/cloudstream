@@ -11,6 +11,12 @@ import java.util.Locale
 object CatalogPreferences {
     const val RECOMMENDED_ONLY = "catalog_recommended_only"
     const val MANAGED_ARCHIVES = "catalog_managed_archives"
+
+    /**
+     * Lifts the reviewed-only filter for this process without saving it (provider survey). A
+     * crash ends the process, so the saved choice can never be left disabled.
+     */
+    @Volatile var surveyAllProviders = false
     fun mayLoadArchive(context: Context, data: PluginData): Boolean = !data.isOnline ||
         data.filePath !in PreferenceManager.getDefaultSharedPreferences(context)
             .getStringSet(MANAGED_ARCHIVES, emptySet()).orEmpty() ||
@@ -34,7 +40,7 @@ object CatalogPreferences {
                 CatalogCuration.videoTypes.map { it.ordinal.toString() }.toSet()).orEmpty()
                 .mapNotNull { ordinal -> TvType.entries.getOrNull(ordinal.toIntOrNull() ?: -1) }
                 .intersect(CatalogCuration.videoTypes).ifEmpty { setOf(TvType.Movie, TvType.TvSeries) },
-            prefs.getBoolean(RECOMMENDED_ONLY, true))
+            prefs.getBoolean(RECOMMENDED_ONLY, true) && !surveyAllProviders)
     }
     fun initial(context: Context): CatalogSelection {
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)

@@ -238,12 +238,12 @@ class CanonicalSearchEngine(
             val raw = SearchMediaMapper.candidate(key, response, classes[key])
             MediaReferenceResolver.enrich(raw.copy(artworkSignature = raw.artworkIds.firstNotNullOfOrNull { visualSignatures[it] }), references)
         } else emptyList()
-        // Works offered in the viewer's language come first; foreign-only works keep their order after them.
+        // Works offered in the viewer's language come first, by relevance to the query; foreign-only works follow.
         val viewer = PlaybackSources.viewerLanguage()
         val native = providers.filter { provider ->
             provider.language.substringBefore('-').lowercase().let { it == viewer || it == "multi" || it == "mul" || it == "all" }
         }.map { it.key }.toSet()
-        cards = if (aggregate) SearchMediaMapper.group(aggregator, interleaved, candidates)
+        cards = if (aggregate) SearchRelevance.rank(query, SearchMediaMapper.group(aggregator, interleaved, candidates))
             .sortedByDescending { card -> native.isEmpty() || card.media.bindings.any { it.provider in native } } else emptyList()
         _state.value = CanonicalSearchState(query, true, snapshot, visible, interleaved, candidates, cards, aggregate,
             snapshot.values.maxOfOrNull { it.page } ?: 0, session.hasNext, session.hasFailures, loading)

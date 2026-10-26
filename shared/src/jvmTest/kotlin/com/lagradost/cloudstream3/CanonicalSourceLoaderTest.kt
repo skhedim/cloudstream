@@ -332,9 +332,11 @@ high.m3u8"""
         assertTrue(PlaybackVerification.matchesRuntime(movie, 114))
         assertTrue(PlaybackVerification.matchesRuntime(movie + 20 * 60_000L, 114))
         assertFalse(PlaybackVerification.matchesRuntime(10 * 60_000L, 114))
-        // No usable runtime: nothing to compare.
+        // No usable runtime: only the minimum length of a movie or an episode applies.
         assertTrue(PlaybackVerification.matchesRuntime(10 * 60_000L, null))
         assertTrue(PlaybackVerification.matchesRuntime(10 * 60_000L, 5_000))
+        assertFalse(PlaybackVerification.matchesRuntime(30_000L, null))
+        assertTrue(PlaybackVerification.matchesRuntime(0L, null))
     }
 
     @Test fun providersWhoseLinksFailInThePlayerRankLower() {
