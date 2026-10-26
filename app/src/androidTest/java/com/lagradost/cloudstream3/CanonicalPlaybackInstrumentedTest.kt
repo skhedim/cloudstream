@@ -13,7 +13,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import com.lagradost.cloudstream3.ui.player.*
 import com.lagradost.cloudstream3.ui.player.aggregation.*
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
 import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
 import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream3.utils.AppContextUtils.loadSearchResult

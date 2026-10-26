@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.player.RepoLinkGenerator
 import com.lagradost.cloudstream3.ui.result.*
 import com.lagradost.cloudstream3.ui.result.aggregation.*
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.AppUtils.toJsonLiteral
 import com.lagradost.cloudstream3.utils.DataStoreHelper

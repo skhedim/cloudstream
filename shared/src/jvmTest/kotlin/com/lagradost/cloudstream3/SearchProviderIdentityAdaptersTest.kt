@@ -1,6 +1,6 @@
 package com.lagradost.cloudstream3
 
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import com.lagradost.cloudstream4.domain.media.MediaAggregator
 import com.lagradost.cloudstream4.domain.media.ProviderKey

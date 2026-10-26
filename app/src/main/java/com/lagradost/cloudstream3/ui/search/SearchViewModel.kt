@@ -13,9 +13,10 @@ import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.TvType
 import com.lagradost.cloudstream4.domain.media.ProviderBinding
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMetadataEnricher
+import com.lagradost.cloudstream4.aggregation.SearchMetadataEnricher
 import com.lagradost.cloudstream3.ui.search.aggregation.SearchAggregationDiagnostics
 import com.lagradost.cloudstream3.ui.search.aggregation.SearchMetadataCatalog
 import com.lagradost.cloudstream3.ui.search.aggregation.SearchArtworkSignatures

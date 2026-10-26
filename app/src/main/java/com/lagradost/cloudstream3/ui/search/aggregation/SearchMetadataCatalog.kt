@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3.ui.search.aggregation
 
+import com.lagradost.cloudstream4.aggregation.SearchIdentityEvidence
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
 import com.lagradost.cloudstream3.ui.search.SearchSuggestionApi
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace

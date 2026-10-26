@@ -1,6 +1,6 @@
 package com.lagradost.cloudstream3
 
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMetadataEnricher
+import com.lagradost.cloudstream4.aggregation.SearchMetadataEnricher
 import com.lagradost.cloudstream4.domain.media.ProviderBinding
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 import kotlinx.coroutines.CompletableDeferred

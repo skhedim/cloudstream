@@ -1,7 +1,7 @@
 package com.lagradost.cloudstream3.ui.home.aggregation
 
 import com.lagradost.cloudstream3.ui.search.SearchSuggestionApi
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchIdentityEvidence
+import com.lagradost.cloudstream4.aggregation.SearchIdentityEvidence
 import com.lagradost.cloudstream4.domain.media.*
 import kotlinx.coroutines.CancellationException
 import org.json.JSONObject

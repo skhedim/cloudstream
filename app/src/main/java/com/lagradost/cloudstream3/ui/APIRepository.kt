@@ -17,7 +17,7 @@ import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.newSearchResponseList
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 import com.lagradost.cloudstream3.utils.Coroutines.atomicListOf
 import com.lagradost.cloudstream3.utils.ExtractorLink

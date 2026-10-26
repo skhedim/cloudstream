@@ -1,4 +1,4 @@
-package com.lagradost.cloudstream3.ui.search.aggregation
+package com.lagradost.cloudstream4.aggregation
 
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import com.lagradost.cloudstream4.domain.media.ExternalMediaId

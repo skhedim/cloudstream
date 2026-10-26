@@ -12,7 +12,8 @@ import com.lagradost.cloudstream3.ui.AutofitRecyclerView
 import com.lagradost.cloudstream3.ui.search.SearchAdapter
 import com.lagradost.cloudstream3.ui.search.SearchResultBuilder
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
 import com.lagradost.cloudstream3.ui.search.SearchHelper
 import com.lagradost.cloudstream3.ui.search.SearchClickCallback
 import com.lagradost.cloudstream3.ui.search.SEARCH_ACTION_LOAD

@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.cloudstream3.ui.result.VideoWatchState
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getVideoWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
 import com.lagradost.cloudstream3.utils.DataStoreHelper.setViewPos

@@ -4,9 +4,12 @@ plugins {
     alias(libs.plugins.android.multiplatform.library)
     alias(libs.plugins.compose.multiplatform)
     alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 kotlin {
+    applyDefaultHierarchyTemplate()
+
     android {
         // Must be unique
         namespace = "com.lagradost.cloudstream4"
@@ -41,6 +44,26 @@ kotlin {
 
         commonTest.dependencies {
             implementation(libs.kotlin.test)
+        }
+
+        // Aggregation engine shared by Android and the desktop JVM app. It uses the extension API
+        // types and java.* (URI, digests, locks); iOS is out of scope, so no pure-common rewrite.
+        val jvmCommonMain by creating {
+            dependsOn(commonMain.get())
+            dependencies {
+                implementation(project(":library"))
+                implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.jackson.module.kotlin)
+                implementation(libs.nicehttp)
+                implementation(libs.kotlinx.serialization.json)
+            }
+        }
+        androidMain { dependsOn(jvmCommonMain) }
+        jvmMain { dependsOn(jvmCommonMain) }
+
+        jvmTest.dependencies {
+            implementation(libs.junit)
+            implementation(libs.kotlinx.coroutines.test)
         }
 
         androidMain.dependencies {

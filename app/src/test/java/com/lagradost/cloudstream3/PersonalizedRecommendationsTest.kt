@@ -3,7 +3,7 @@ package com.lagradost.cloudstream3
 import android.app.Application
 import com.lagradost.cloudstream3.ui.home.aggregation.*
 import com.lagradost.cloudstream3.ui.result.ResultFragment
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream4.domain.media.*
 import kotlinx.coroutines.*
 import org.junit.Assert.*
@@ -164,7 +164,7 @@ class PersonalizedRecommendationsTest {
         val a=api("a")
         val response=a.newTvSeriesSearchResponse("Misclassified","/misclassified") { year=2026 }
         val batch=RecommendationBatch("series",source(a),listOf(response),MediaKind.Series,"Seen series")
-        com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache.remember(a,response.url,
+        com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache.remember(a,response.url,
             a.newMovieLoadResponse("Misclassified",response.url,TvType.Movie,"opaque") { year=2026 })
         assertTrue(AggregatedHomeProjector().project(emptyList(),listOf(batch)).isEmpty())
     }

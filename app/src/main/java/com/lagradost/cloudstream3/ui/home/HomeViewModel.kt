@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 import com.lagradost.cloudstream4.domain.media.ProviderBinding
@@ -282,7 +282,7 @@ class HomeViewModel : ViewModel() {
                 personalizedJob.join()
                 if (projector.detailRequests.isNotEmpty()) {
                     _discoveryStatus.value = ctx.getString(R.string.home_updating_news)
-                    com.lagradost.cloudstream3.ui.search.aggregation.SearchMetadataEnricher().enrich(
+                    com.lagradost.cloudstream4.aggregation.SearchMetadataEnricher().enrich(
                         projector.detailRequests,
                         load = { binding ->
                             val repo = repos.firstOrNull { it.name == binding.provider.name && it.mainUrl == binding.provider.mainUrl }

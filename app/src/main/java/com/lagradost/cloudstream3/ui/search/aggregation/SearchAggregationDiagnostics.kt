@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3.ui.search.aggregation
 
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.CloudStreamApp
 import com.lagradost.cloudstream4.domain.media.CanonicalMedia
 import com.lagradost.cloudstream4.domain.media.MediaCandidate

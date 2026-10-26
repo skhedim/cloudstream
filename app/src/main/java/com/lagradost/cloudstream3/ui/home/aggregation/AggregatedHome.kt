@@ -2,7 +2,7 @@ package com.lagradost.cloudstream3.ui.home.aggregation
 
 import com.lagradost.cloudstream3.*
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream4.domain.media.*
 import java.text.Normalizer
 import com.lagradost.cloudstream3.ui.search.aggregation.SearchArtworkSignatures

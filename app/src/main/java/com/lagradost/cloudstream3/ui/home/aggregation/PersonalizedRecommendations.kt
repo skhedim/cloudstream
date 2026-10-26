@@ -2,8 +2,8 @@ package com.lagradost.cloudstream3.ui.home.aggregation
 
 import com.lagradost.cloudstream3.SearchResponse
 import com.lagradost.cloudstream3.LoadResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream4.domain.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore

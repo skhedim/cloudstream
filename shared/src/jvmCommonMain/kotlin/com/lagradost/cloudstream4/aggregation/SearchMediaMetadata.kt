@@ -1,4 +1,4 @@
-package com.lagradost.cloudstream3.ui.search.aggregation
+package com.lagradost.cloudstream4.aggregation
 
 import com.lagradost.cloudstream3.AnimeLoadResponse
 import com.lagradost.cloudstream3.LoadResponse

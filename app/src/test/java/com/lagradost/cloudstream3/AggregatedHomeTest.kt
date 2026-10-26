@@ -206,7 +206,7 @@ class AggregatedHomeTest {
         assertEquals(2,projector.project(feeds).first().cards.size)
         assertEquals(b.name,projector.detailRequests.first().provider.name)
         val detail=b.newMovieLoadResponse("An ambiguous film",incomplete.url,TvType.Movie,"opaque") { year=2026 }
-        com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache.remember(b,incomplete.url,detail)
+        com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache.remember(b,incomplete.url,detail)
         assertEquals(2,projector.project(feeds).first().cards.single().media.bindings.size)
         assertNull(incomplete.year)
     }

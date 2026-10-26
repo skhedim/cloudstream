@@ -12,7 +12,7 @@ import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.ui.catalog.CatalogPreferences
 import com.lagradost.cloudstream3.ui.home.HomeViewModel
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.utils.AppContextUtils.loadSearchResult
 import com.lagradost.cloudstream3.utils.DOWNLOAD_HEADER_CACHE
 import com.lagradost.cloudstream3.utils.DataStoreHelper

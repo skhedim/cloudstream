@@ -1,8 +1,9 @@
 package com.lagradost.cloudstream3
 
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMapper
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
+import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import com.lagradost.cloudstream4.domain.media.MediaAggregator
