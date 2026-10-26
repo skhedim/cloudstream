@@ -43,7 +43,7 @@ open class ParentItemAdapter(
     diffCallback = BaseDiffCallback(
         itemSame = { a, b -> a.list.name == b.list.name },
         contentSame = { a, b ->
-            a.list.list == b.list.list
+            a.list.list == b.list.list && a.hasNext == b.hasNext && a.previewLimit == b.previewLimit && a.loadFailed == b.loadFailed
         })
 ) {
     companion object {
@@ -82,8 +82,15 @@ open class ParentItemAdapter(
     ) {
         val binding = holder.view
         if (binding !is HomepageParentBinding) return
-        (binding.homeChildRecyclerview.adapter as? HomeChildItemAdapter)?.submitList(item.list.list)
+        (binding.homeChildRecyclerview.adapter as? HomeChildItemAdapter)?.apply {
+            hasNext = item.hasNext && item.previewLimit == Int.MAX_VALUE
+            submitList(item.list.list.take(item.previewLimit))
+        }
+        binding.homeChildShowAll.setOnClickListener { moreInfoClickCallback(item) }
+        if (isLayout(PHONE or EMULATOR)) binding.homeChildMoreInfo.setOnClickListener { moreInfoClickCallback(item) }
     }
+
+    protected open fun childAdapterId(item: HomeViewModel.ExpandableHomepageList, position: Int) = id + position + 100
 
     override fun onBindContent(
         holder: ViewHolderState<Bundle>,
@@ -97,26 +104,27 @@ open class ParentItemAdapter(
         val info = item.list
         binding.apply {
             val currentAdapter = homeChildRecyclerview.adapter as? HomeChildItemAdapter
-            if (currentAdapter == null) {
+            val childId = childAdapterId(item, position)
+            if (currentAdapter == null || currentAdapter.id != childId) {
                 homeChildRecyclerview.setRecycledViewPool(HomeChildItemAdapter.sharedPool)
                 homeChildRecyclerview.adapter = HomeChildItemAdapter(
-                    id = id + position + 100,
+                    id = childId,
                     clickCallback = clickCallback,
                     nextFocusUp = homeChildRecyclerview.nextFocusUpId,
                     nextFocusDown = homeChildRecyclerview.nextFocusDownId,
                 ).apply {
                     isHorizontal = info.isHorizontalImages
-                    hasNext = item.hasNext
-                    submitList(item.list.list)
+                    hasNext = item.hasNext && item.previewLimit == Int.MAX_VALUE
+                    submitList(item.list.list.take(item.previewLimit))
                 }
             } else {
                 currentAdapter.apply {
                     isHorizontal = info.isHorizontalImages
-                    hasNext = item.hasNext
+                    hasNext = item.hasNext && item.previewLimit == Int.MAX_VALUE
                     this.clickCallback = this@ParentItemAdapter.clickCallback
                     nextFocusUp = homeChildRecyclerview.nextFocusUpId
                     nextFocusDown = homeChildRecyclerview.nextFocusDownId
-                    submitIncomparableList(item.list.list)
+                    submitIncomparableList(item.list.list.take(item.previewLimit))
                 }
             }
 
@@ -126,6 +134,8 @@ open class ParentItemAdapter(
                 nextRight = endFocus,
             )
             homeChildMoreInfo.text = info.name
+            homeChildShowAll.contentDescription = homeChildShowAll.context.getString(R.string.home_show_all_named, info.name)
+            homeChildShowAll.setOnClickListener { moreInfoClickCallback(item) }
 
             homeChildRecyclerview.addOnScrollListener(object :
                 RecyclerView.OnScrollListener() {

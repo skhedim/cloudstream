@@ -186,7 +186,8 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                 storedData.apiName,
                 storedData.showFillers,
                 storedData.dubStatus,
-                storedData.start
+                storedData.start,
+                canonicalRequest = storedData.canonicalRequest
             )
         }
     }
@@ -268,7 +269,8 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                 storedData.apiName,
                 storedData.showFillers,
                 storedData.dubStatus,
-                storedData.start
+                storedData.start,
+                canonicalRequest = storedData.canonicalRequest
             )
         // ===== ===== =====
         var comingSoon = false
@@ -294,7 +296,8 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                         resultBookmarkButton,
                         resultFavoriteButton,
                         resultSubscribeButton,
-                        resultSearchButton
+                        resultSearchButton,
+                        resultYoutubeButton
                     )
                     for (requestView in views) {
                         if (!requestView.isVisible) continue
@@ -330,6 +333,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                 resultFavoriteButton to resultFavoriteText,
                 resultSubscribeButton to resultSubscribeText,
                 resultSearchButton to resultSearchText,
+                resultYoutubeButton to resultYoutubeText,
                 resultEpisodesShowButton to resultEpisodesShowText
             ).forEach { (button, text) ->
 
@@ -396,7 +400,8 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                     storedData.apiName,
                     storedData.showFillers,
                     storedData.dubStatus,
-                    storedData.start
+                    storedData.start,
+                    canonicalRequest = storedData.canonicalRequest
                 )
 
             }
@@ -511,7 +516,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                 focusPlayButton()
                 // Stops last button right focus if it is a movie
                 if (resume.isMovie)
-                    resultSearchButton.nextFocusRightId = R.id.result_search_Button
+                    resultYoutubeButton.nextFocusRightId = R.id.result_youtube_Button
 
                 resultResumeSeriesText.text =
                     when {
@@ -695,7 +700,7 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                     } else resultPlayMovieButton.requestFocus()
 
                     // Stops last button right focus
-                    resultSearchButton.nextFocusRightId = R.id.result_search_Button
+                    resultYoutubeButton.nextFocusRightId = R.id.result_youtube_Button
                 }
             }
         }
@@ -865,9 +870,10 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                         val d = data.value
                         resultVpn.setText(d.vpnText)
                         resultInfo.setText(d.metaText)
+                        resultCanonicalStatus.setText(if (d.isCanonical) d.metaText else null)
                         resultNoEpisodes.setText(d.noEpisodesFoundText)
                         resultTitle.setText(d.titleText)
-                        resultMetaSite.setText(d.apiName)
+                        resultMetaSite.setText(if (d.isCanonical) null else d.apiName)
                         resultMetaType.setText(d.typeText)
                         resultMetaYear.setText(d.yearText)
                         resultMetaDuration.setText(d.durationText)
@@ -940,6 +946,9 @@ class ResultFragmentTv : BaseFragment<FragmentResultTvBinding>(
                             resultMetaContentRating.width = 0
                         }
 
+                        resultYoutubeButton.setOnClickListener {
+                            TrailerSearch.open(this@ResultFragmentTv, d.title, d.yearText?.asStringNull(context)?.toIntOrNull())
+                        }
                         resultSearchButton.setOnClickListener {
                             QuickSearchFragment.pushSearch(activity, d.title)
                         }

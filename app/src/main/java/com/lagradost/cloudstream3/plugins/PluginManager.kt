@@ -591,6 +591,15 @@ object PluginManager {
      * @return True if successful, false if not
      * */
     internal suspend fun loadPlugin(context: Context, file: File, data: PluginData): Boolean {
+        // Stop known non-video/intrusive packages before their constructor or load() can open UI.
+        if (com.lagradost.cloudstream3.ui.catalog.CatalogCuration.blocked(data)) {
+            Log.w(TAG, "Skipped excluded extension: ${data.internalName}")
+            return false
+        }
+        if (!com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.mayLoadArchive(context, data)) {
+            Log.w(TAG, "Skipped managed extension outside the recommended catalogue: ${data.internalName}")
+            return false
+        }
         val fileName = file.nameWithoutExtension
         val filePath = file.absolutePath
         currentlyLoading = fileName
@@ -626,6 +635,11 @@ object PluginManager {
             val version: Int = manifest.version ?: PLUGIN_VERSION_NOT_SET.also {
                 Log.d(TAG, "No manifest version for ${data.internalName}")
             }
+            if (com.lagradost.cloudstream3.ui.catalog.CatalogCuration.blockedClass(manifest.pluginClassName.orEmpty())) {
+                Log.w(TAG, "Skipped excluded extension class: ${data.internalName}")
+                return false
+            }
+            if (com.lagradost.cloudstream3.ui.catalog.CatalogCuration.blocked(data.internalName, file.absolutePath, version)) return false
 
             @Suppress("UNCHECKED_CAST")
             val pluginClass: Class<*> =

@@ -74,7 +74,14 @@ class HomeParentItemAdapterPreview(
     }, expandCallback = {
         viewModel.expand(it)
     }) {
-    override val headers = 1
+    // Discovery shelves lead; personal history and bookmarks remain available below them.
+    private val discovery = viewModel.aggregated
+    override val headers get() = if (discovery) 0 else 1
+    override val footers get() = if (discovery) 1 else 0
+    override fun childAdapterId(item: HomeViewModel.ExpandableHomepageList, position: Int) =
+        if (discovery) id + item.list.name.hashCode() else super.childAdapterId(item, position)
+    override fun onCreateFooter(parent: ViewGroup) = onCreateHeader(parent)
+    override fun onBindFooter(holder: ViewHolderState<Bundle>) = onBindHeader(holder)
     override fun onCreateHeader(parent: ViewGroup): ViewHolderState<Bundle> {
         val inflater = LayoutInflater.from(parent.context)
         val binding = if (isLayout(TV or EMULATOR)) FragmentHomeHeadTvBinding.inflate(

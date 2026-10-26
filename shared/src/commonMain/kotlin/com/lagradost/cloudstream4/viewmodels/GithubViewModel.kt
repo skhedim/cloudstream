@@ -290,8 +290,8 @@ class GithubViewModel(
             contentType = remoteContentType
         )
 
-        // If on stable, only check that the display name matches
-        if (!prerelease && release.displayName == versionName) {
+        // Stable updates must be newer: do not reinstall the same APK or suggest a downgrade.
+        if (!prerelease && !ReleaseVersion.isNewer(release.displayName, versionName)) {
             updateState {
                 copy(dialog = baseDialog.copy(state = GithubUpdateDialogState.NoUpdateFound))
             }

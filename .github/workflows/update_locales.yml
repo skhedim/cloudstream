@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   create:
+    if: github.repository == 'recloudstream/cloudstream'
     runs-on: ubuntu-latest
     steps:
     - name: Generate access token

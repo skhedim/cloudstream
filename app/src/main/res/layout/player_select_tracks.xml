@@ -14,6 +14,33 @@
             android:orientation="horizontal">
 
         <LinearLayout
+                android:id="@+id/source_version_holder"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="50"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+            <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:padding="10dp"
+                    android:text="@string/canonical_playback_version"
+                    android:textColor="?attr/textColor"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+            <ListView
+                    android:id="@+id/source_version_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="?attr/primaryBlackBackground"
+                    android:nextFocusRight="@id/auto_tracks_list"
+                    tools:listitem="@layout/sort_bottom_single_choice" />
+        </LinearLayout>
+
+        <LinearLayout
                 android:id="@+id/video_tracks_holder"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"

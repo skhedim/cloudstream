@@ -814,4 +814,15 @@
     </plurals>
     <string name="player_is_live">Live</string>
     <string name="installed_plugins">Installed plugins</string>
+    <string name="aggregate_search">Group matching search results</string>
+    <string name="aggregate_search_des">Show one entry per identified film or series. Takes precedence over provider rows.</string>
+    <string name="search_load_more">Load more results</string>
+    <string name="search_retry_providers">Load more / retry missing results</string>
+    <string name="search_voice_description">Voice search</string>
+    <string name="canonical_unlocated_episodes">Episodes to identify</string>
+    <string name="canonical_partial_detail">Some details could not be loaded (%1$d/%2$d available).</string>
+    <string name="canonical_detail_failed">Unable to load this title. Please try again.</string>
+    <string name="canonical_unspecified_audio">Unspecified audio</string>
+    <string name="canonical_playback_version">Version</string>
+    <string name="canonical_version_auto">Auto — best quality</string>
 </resources>

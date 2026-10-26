@@ -194,6 +194,15 @@ https://developer.android.com/design/ui/tv/samples/jet-fit
                     tools:text="The Perfect Run The Perfect Run" />
 
                 <TextView
+                    android:id="@+id/result_canonical_status"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:textColor="?attr/grayTextColor"
+                    android:textSize="15sp"
+                    android:visibility="gone" />
+
+                <TextView
                     android:id="@+id/result_episodes_text"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
@@ -510,6 +519,31 @@ https://developer.android.com/design/ui/tv/samples/jet-fit
                         android:id="@+id/result_search_text"
                         style="@style/ResultMarqueeButtonText"
                         android:text="@string/title_search" />
+
+                </LinearLayout>
+
+                <LinearLayout
+                    android:id="@+id/result_youtube"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="8dp"
+                    android:orientation="vertical">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/result_youtube_Button"
+                        style="@style/ResultSmallButtonTV"
+                        android:focusable="true"
+                        android:contentDescription="@string/youtube_trailer"
+                        android:nextFocusUp="@id/result_youtube_Button"
+                        android:nextFocusDown="@id/result_description"
+                        android:tag="@string/tv_no_focus_tag"
+                        app:icon="@drawable/ic_baseline_ondemand_video_24"
+                        app:iconPadding="0dp" />
+
+                    <TextView
+                        android:id="@+id/result_youtube_text"
+                        style="@style/ResultMarqueeButtonText"
+                        android:text="@string/youtube_trailer" />
 
                 </LinearLayout>
 

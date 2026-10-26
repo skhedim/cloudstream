@@ -247,7 +247,7 @@ class SettingsUpdates : BasePreferenceFragmentCompat() {
         }
         
         getPref(R.string.install_prerelease_key)?.let { pref ->
-            pref.isVisible = BuildConfig.FLAVOR == "stable"
+            pref.isVisible = false // This fork publishes a single stable update channel.
             pref.setOnPreferenceClickListener {
                 activity?.installPreReleaseIfNeeded()
                 return@setOnPreferenceClickListener true

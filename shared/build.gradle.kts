@@ -39,6 +39,10 @@ kotlin {
             implementation(project(":library"))
         }
 
+        commonTest.dependencies {
+            implementation(libs.kotlin.test)
+        }
+
         androidMain.dependencies {
             implementation(libs.activity.compose)
             implementation(libs.preference.ktx)

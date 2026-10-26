@@ -146,12 +146,17 @@ class AutofitRecyclerView @JvmOverloads constructor(context: Context, attrs: Att
         set(value) {
             field = value
             if (value > 0) {
-                manager.spanCount = value
+                (layoutManager as? GridLayoutManager)?.spanCount = value
             }
         }
 
     val itemWidth: Int
-        get() = measuredWidth / manager.spanCount
+        get() = measuredWidth / ((layoutManager as? GridLayoutManager)?.spanCount ?: manager.spanCount)
+
+    /** Opt in for large browsable grids; other screens retain their existing navigation. */
+    fun useDefaultGridNavigation() {
+        layoutManager = GridLayoutManager(context, (layoutManager as? GridLayoutManager)?.spanCount ?: 2)
+    }
 
     init {
         if (attrs != null) {

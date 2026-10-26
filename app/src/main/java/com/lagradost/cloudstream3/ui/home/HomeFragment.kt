@@ -1,5 +1,7 @@
 package com.lagradost.cloudstream3.ui.home
 
+import androidx.navigation.fragment.findNavController
+
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
@@ -19,12 +21,14 @@ import androidx.activity.ComponentActivity
 import androidx.appcompat.app.AlertDialog
 import androidx.core.net.toUri
 import androidx.core.view.doOnLayout
+import androidx.core.view.doOnNextLayout
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.fragment.app.activityViewModels
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.GridLayoutManager
 import com.lagradost.cloudstream3.plugins.PluginManager
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getActivity
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -87,6 +91,7 @@ import com.lagradost.cloudstream3.utils.UIHelper.getSpanCount
 import com.lagradost.cloudstream3.utils.UIHelper.navigate
 import com.lagradost.cloudstream3.utils.UIHelper.popupMenuNoIconsAndNoStringRes
 import com.lagradost.cloudstream3.utils.UIHelper.toPx
+import kotlinx.coroutines.*
 
 private const val TAG = "HomeFragment"
 
@@ -142,6 +147,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
         ): BottomSheetDialog {
             val context = this
             val bottomSheetDialogBuilder = BottomSheetDialog(context)
+            val pagingScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
             val binding: HomeEpisodesExpandedBinding = HomeEpisodesExpandedBinding.inflate(
                 bottomSheetDialogBuilder.layoutInflater,
                 null,
@@ -215,6 +221,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
 
 
             // Span settings
+            binding.homeExpandedRecycler.useDefaultGridNavigation()
             binding.homeExpandedRecycler.spanCount = context.getSpanCount(item.isHorizontalImages)
             binding.homeExpandedRecycler.setRecycledViewPool(SearchAdapter.sharedPool)
             binding.homeExpandedRecycler.adapter =
@@ -229,6 +236,63 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                     hasNext = expand.hasNext
                 }
 
+            var loadingMore = false
+            var hasMore = expand.hasNext
+            var failed = expand.loadFailed
+            var noNewItems = false
+            fun cardKey(card: SearchResponse): Any =
+                (card as? com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse)?.media?.id
+                    ?: (card.apiName to card.url)
+            fun updateCount() {
+                val count = (binding.homeExpandedRecycler.adapter as? SearchAdapter)?.immutableCurrentList?.size ?: 0
+                binding.homeExpandedCount.text = context.getString(R.string.home_expanded_count, count)
+            }
+            fun updateMoreButton() {
+                binding.homeExpandedLoadMore.isVisible = expandCallback != null && hasMore
+                binding.homeExpandedLoadMore.isEnabled = !loadingMore
+                binding.homeExpandedLoadMore.setText(when {
+                    loadingMore -> R.string.home_loading_more
+                    failed -> R.string.home_load_more_retry
+                    noNewItems -> R.string.home_no_new_items
+                    else -> R.string.home_load_more
+                })
+            }
+            fun loadMore() {
+                if (loadingMore || !hasMore || expandCallback == null) return
+                val adapter = binding.homeExpandedRecycler.adapter as? SearchAdapter ?: return
+                loadingMore = true
+                val oldKeys = adapter.immutableCurrentList.map(::cardKey).toSet()
+                updateMoreButton()
+                pagingScope.launch {
+                    try {
+                        val next = withContext(Dispatchers.IO) { expandCallback(expand.list.name) }
+                        if (next == null) hasMore = false else {
+                            hasMore = next.hasNext
+                            failed = next.loadFailed
+                            noNewItems = !failed && next.list.list.none { cardKey(it) !in oldKeys }
+                            (binding.homeExpandedRecycler.adapter as? SearchAdapter)?.apply {
+                                hasNext = next.hasNext
+                                submitList(next.list.list, Runnable {
+                                    updateCount()
+                                    val firstAdded = immutableCurrentList.indexOfFirst { cardKey(it) !in oldKeys }
+                                    if (firstAdded >= 0) {
+                                        binding.homeExpandedRecycler.doOnNextLayout {
+                                            binding.homeExpandedRecycler.findViewHolderForAdapterPosition(firstAdded)?.itemView?.requestFocus()
+                                        }
+                                        (binding.homeExpandedRecycler.layoutManager as? GridLayoutManager)
+                                            ?.scrollToPositionWithOffset(firstAdded, 0)
+                                    } else if (!hasMore) binding.homeExpandedRecycler.requestFocus()
+                                })
+                            }
+                        }
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (error: Exception) { failed = true; logError(error) }
+                    finally { loadingMore = false; updateMoreButton() }
+                }
+            }
+            binding.homeExpandedLoadMore.setOnClickListener { loadMore() }
+            binding.homeExpandedRecycler.post { updateCount() }
+            updateMoreButton()
             binding.homeExpandedRecycler.addOnScrollListener(object :
                 RecyclerView.OnScrollListener() {
                 var expandCount = 0
@@ -243,16 +307,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                     val count = adapter.itemCount
                     val currentHasNext = adapter.hasNext
                     //!recyclerView.canScrollVertically(1)
-                    if (!recyclerView.isRecyclerScrollable() && currentHasNext && expandCount != count) {
+                    if (expand.previewLimit == Int.MAX_VALUE && !recyclerView.isRecyclerScrollable() && currentHasNext && expandCount != count) {
                         expandCount = count
-                        ioSafe {
-                            expandCallback?.invoke(name)?.let { newExpand ->
-                                (recyclerView.adapter as? SearchAdapter?)?.apply {
-                                    hasNext = newExpand.hasNext
-                                    submitList(newExpand.list.list)
-                                }
-                            }
-                        }
+                        loadMore()
                     }
                 }
             })
@@ -268,6 +325,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             configEvent += spanListener
 
             bottomSheetDialogBuilder.setOnDismissListener {
+                pagingScope.cancel()
                 dismissCallback.invoke()
                 configEvent -= spanListener
             }
@@ -275,6 +333,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             //(recycle.adapter as SearchAdapter).notifyDataSetChanged()
 
             bottomSheetDialogBuilder.show()
+            bottomSheetDialogBuilder.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.let { sheet ->
+                sheet.layoutParams = sheet.layoutParams.apply { height = (context.resources.displayMetrics.heightPixels * 0.94).toInt() }
+            }
+            bottomSheetDialogBuilder.behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED
+            bottomSheetDialogBuilder.behavior.isDraggable = false
             return bottomSheetDialogBuilder
         }
 
@@ -620,6 +683,19 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
     }
 
     private val apiChangeClickListener = View.OnClickListener { view ->
+        if (homeViewModel.aggregated) {
+            val labels = mutableListOf(getString(R.string.home_news))
+            labels += getString(R.string.catalog_title)
+            androidx.appcompat.app.AlertDialog.Builder(view.context)
+                .setTitle(R.string.catalog_choose_space)
+                .setItems(labels.toTypedArray()) { _, index ->
+                    when {
+                        index == labels.lastIndex -> findNavController().navigate(R.id.navigation_catalog)
+                        else -> homeViewModel.loadAndCancel(null, forceReload = false)
+                    }
+                }.show()
+            return@OnClickListener
+        }
         view.context.selectHomepage(currentApiName) { api ->
             homeViewModel.loadAndCancel(api, forceReload = true, fromUI = true)
         }
@@ -633,6 +709,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
     }
 
     private var currentApiName: String? = null
+    private var discoveryUserBrowsing = false
     private var toggleRandomButton = false
 
     private var bottomSheetDialog: BottomSheetDialog? = null
@@ -642,7 +719,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
 
     fun saveHomepageToTV(page: Map<String, HomeViewModel.ExpandableHomepageList>) {
         // No need to update for phone
-        if (isLayout(PHONE)) {
+        if (isLayout(PHONE) || homeViewModel.aggregated) {
             return
         }
         val (name, data) = page.entries.firstOrNull() ?: return
@@ -698,6 +775,11 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             )
             homeMasterRecycler.setRecycledViewPool(ParentItemAdapter.sharedPool)
             homeMasterRecycler.adapter = homeMasterAdapter
+            if (homeViewModel.aggregated) {
+                homeMasterRecycler.setPadding(0, (if (isLayout(PHONE)) 48 else 72).toPx, 0, 0)
+                homeMasterRecycler.clipToPadding = true
+                homeApiFab.setIconResource(R.drawable.ic_baseline_keyboard_arrow_down_24)
+            }
 
             homeApiFab.isVisible = isLayout(PHONE)
 
@@ -748,6 +830,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
 
 
             homeMasterRecycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) discoveryUserBrowsing = true
+                }
+
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                     if (isLayout(PHONE)) {
                         // Fab is only relevant to Phone
@@ -766,7 +852,10 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                         val view = recyclerView.findViewHolderForAdapterPosition(0)?.itemView
                         val scrollParent = binding.homeApiHolder
 
-                        if (view == null) {
+                        if (homeViewModel.aggregated) {
+                            scrollParent.isVisible = true
+                            scrollParent.translationY = 0f
+                        } else if (view == null) {
                             // The first view is not visible, so we can assume we have scrolled past it
                             scrollParent.isVisible = false
                         } else {
@@ -820,12 +909,27 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             binding.homeRandomButtonTv.visibility = View.GONE
         }
 
+        observe(homeViewModel.discoveryStatus) { status ->
+            binding.homeAggregatedStatus.text = status
+            binding.homeAggregatedStatus.isVisible = homeViewModel.aggregated
+        }
+        binding.homeAggregatedStatus.isVisible = homeViewModel.aggregated
         observe(homeViewModel.apiName) { apiName ->
             currentApiName = apiName
-            val displayApiName = context?.getDisplayName(apiName) ?: apiName
+            val displayApiName = if (homeViewModel.aggregated) getString(R.string.home_news)
+                else context?.getDisplayName(apiName) ?: apiName
             binding.apply {
                 homeApiFab.text = displayApiName
                 homeChangeApi.text = displayApiName
+                if (homeViewModel.aggregated) {
+                    homeChangeApi.contentDescription = getString(R.string.catalog_choose_space)
+                    homePreviewReloadProvider.contentDescription = getString(R.string.home_refresh_news)
+                    homeChangeApi.nextFocusRightId = R.id.home_preview_reload_provider
+                    homePreviewReloadProvider.nextFocusLeftId = R.id.home_change_api
+                    listOf(homeChangeApi, homePreviewReloadProvider, homePreviewSearchButton).forEach {
+                        it.nextFocusDownId = R.id.home_master_recycler
+                    }
+                }
                 homePreviewReloadProvider.isGone = (apiName == noneApi.name)
                 homePreviewSearchButton.isGone = (apiName == noneApi.name)
             }
@@ -846,13 +950,21 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                             it.copy(
                                 list = it.list.copy(list = it.list.list.toMutableList())
                             )
+                        }, Runnable {
+                            if (homeViewModel.aggregated && homeViewModel.page.value === data) homeMasterRecycler.isVisible = true
+                            // Rows inserted above the personal footer must not leave the viewport
+                            // anchored to that footer while the user is still at the home controls.
+                            if (homeViewModel.aggregated && ((isLayout(PHONE) && !discoveryUserBrowsing) || activity?.currentFocus?.id in setOf(
+                                    R.id.home_change_api, R.id.home_preview_reload_provider,
+                                    R.id.home_preview_search_button, R.id.navigation_home
+                                ))) homeMasterRecycler.scrollToPosition(0)
                         })
 
                         saveHomepageToTV(d)
 
                         homeLoading.isVisible = false
                         homeLoadingError.isVisible = false
-                        homeMasterRecycler.isVisible = true
+                        if (!homeViewModel.aggregated) homeMasterRecycler.isVisible = true
                         homeLoadingShimmer.stopShimmer()
 
                         //home_loaded?.isVisible = true
@@ -901,7 +1013,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                             hasNoNetworkConnection || isNetworkError
 
                         // Only hide the open in browser button if we know this is not network shenanigans related to cs3
-                        homeReloadConnectionOpenInBrowser.isGone = hasNoNetworkConnection
+                        homeReloadConnectionOpenInBrowser.isGone = hasNoNetworkConnection || homeViewModel.aggregated
 
                         resultErrorText.text = if (hasNoNetworkConnection) {
                             getString(R.string.no_internet_connection)
@@ -928,6 +1040,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                             submitList(null)
                             clearState()
                         }
+                        if (homeViewModel.aggregated) homeMasterRecycler.itemAnimator?.endAnimations()
                         //home_loaded?.isVisible = false
                     }
                 }

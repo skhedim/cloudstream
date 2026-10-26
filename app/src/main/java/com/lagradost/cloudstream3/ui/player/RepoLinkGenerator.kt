@@ -2,6 +2,7 @@ package com.lagradost.cloudstream3.ui.player
 
 import android.util.Log
 import com.lagradost.cloudstream3.APIHolder.getApiFromNameNull
+import com.lagradost.cloudstream3.APIHolder.apis
 import com.lagradost.cloudstream3.APIHolder.unixTime
 import com.lagradost.cloudstream3.LoadResponse
 import com.lagradost.cloudstream3.ui.APIRepository
@@ -11,6 +12,10 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceLoader
+import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 data class Cache(
     val linkCache: MutableSet<ExtractorLink>,
@@ -49,15 +54,26 @@ class RepoLinkGenerator(
         isCasting: Boolean,
     ): Boolean {
         val current = videos.getOrNull(offset) ?: return false
+        if (current.sourceBindings.isNotEmpty()) {
+            val sources = CanonicalSourceLoader().load(current.sourceBindings, clearCache, isCasting)
+            currentCoroutineContext().ensureActive()
+            if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.write(current, sources)
+            sources.subtitles.forEach(subtitleCallback)
+            sources.links.filter { it.type in sourceTypes }.forEach { callback(it to null) }
+            return sources.links.any { it.type in sourceTypes }
+        }
+        val binding = current.sourceBindings.firstOrNull()
+        val cacheKey = (if (binding == null) current.apiName else
+            "${binding.apiName}\n${binding.mainUrl}") to current.id
 
         val currentCache = synchronized(cache) {
-            cache[current.apiName to current.id] ?: Cache(
+            cache[cacheKey] ?: Cache(
                 mutableSetOf(),
                 mutableSetOf(),
                 unixTime,
                 false
             ).also {
-                cache[current.apiName to current.id] = it
+                cache[cacheKey] = it
             }
         }
 
@@ -104,9 +120,11 @@ class RepoLinkGenerator(
             }
         }
 
-        val result = APIRepository(
-            getApiFromNameNull(current.apiName) ?: throw Exception("This provider does not exist")
-        ).loadLinks(
+        val api = if (binding == null) getApiFromNameNull(current.apiName) else {
+            val named = apis.filter { it.name == binding.apiName }
+            named.firstOrNull { it.mainUrl == binding.mainUrl } ?: named.singleOrNull()
+        } ?: throw Exception("This provider does not exist")
+        val result = APIRepository(api).loadLinks(
             current.data,
             isCasting = isCasting,
             subtitleCallback = { file ->

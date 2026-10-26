@@ -169,6 +169,18 @@ object SettingsUIScreen : SearchableSettings {
                         }),
 
                     Preference.PreferenceItem.SwitchPreference(
+                        preference = settings.ui.aggregateHome,
+                        title = stringResource(R.string.aggregate_home),
+                        subtitle = stringResource(R.string.aggregate_home_des),
+                        icon = painterResource(R.drawable.home_icon_filled_24)
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
+                        preference = settings.ui.aggregateSearch,
+                        title = stringResource(R.string.aggregate_search),
+                        subtitle = stringResource(R.string.aggregate_search_des),
+                        icon = painterResource(R.drawable.search_icon)
+                    ),
+                    Preference.PreferenceItem.SwitchPreference(
                         preference = settings.ui.advancedSearch,
                         title = stringResource(R.string.advanced_search),
                         subtitle = stringResource(R.string.advanced_search_des),

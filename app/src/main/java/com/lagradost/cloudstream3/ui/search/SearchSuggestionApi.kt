@@ -14,6 +14,13 @@ import kotlinx.serialization.Serializable
 object SearchSuggestionApi {
     private const val TMDB_API_URL = "https://api.themoviedb.org/3/search/multi"
     private const val TMDB_API_KEY = "e6333b32409e02a4a6eba6fb7ff866bb"
+    /** Same upstream TMDB access used by suggestions; no extension credentials are inspected. */
+    internal suspend fun metadata(path: String, params: Map<String, String> = emptyMap()): NiceResponse =
+        app.get(
+            TMDB_API_URL.removeSuffix("/search/multi") + path,
+            params = params + ("api_key" to TMDB_API_KEY),
+            cacheTime = 60 * 24,
+        )
     
     @Serializable
     data class TmdbSearchResult(

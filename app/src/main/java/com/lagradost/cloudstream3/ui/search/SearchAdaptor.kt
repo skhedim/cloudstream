@@ -4,7 +4,11 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
+import androidx.recyclerview.widget.GridLayoutManager
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.R
+import com.lagradost.cloudstream3.databinding.SearchLoadMoreBinding
+import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream3.databinding.SearchResultGridBinding
 import com.lagradost.cloudstream3.databinding.SearchResultGridExpandedBinding
 import com.lagradost.cloudstream3.ui.AutofitRecyclerView
@@ -33,20 +37,66 @@ class SearchClickCallback(
 class SearchAdapter(
     private val resView: AutofitRecyclerView,
     private val isHorizontal:Boolean = false,
+    private val loadMore: (() -> Unit)?,
     private val clickCallback: (SearchClickCallback) -> Unit,
 ) : NoStateAdapter<SearchResponse>(diffCallback = BaseDiffCallback(itemSame = { a, b ->
-    if (a.id != null || b.id != null) {
+    if (a is AggregatedSearchResponse && b is AggregatedSearchResponse) {
+        a.media.id == b.media.id
+    } else if (a is AggregatedSearchResponse || b is AggregatedSearchResponse) {
+        false
+    } else if (a.id != null || b.id != null) {
         a.id == b.id
     } else {
         a.name == b.name
     }
 })) {
+    // Keep the existing constructor (including Kotlin's default-argument bridge) for extensions.
+    constructor(
+        resView: AutofitRecyclerView,
+        isHorizontal: Boolean = false,
+        clickCallback: (SearchClickCallback) -> Unit,
+    ) : this(resView, isHorizontal, null, clickCallback)
+
     companion object {
         val sharedPool =
             newSharedPool { setMaxRecycledViews(CONTENT, 10) }
     }
 
     var hasNext: Boolean = false
+    private var loadingMore = false
+    private var hasFailures = false
+    override val footers: Int get() = if (loadMore == null) 0 else 1
+
+    fun configurePagingSpan() {
+        if (loadMore == null) return
+        val manager = resView.layoutManager as? GridLayoutManager ?: return
+        manager.spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+            override fun getSpanSize(position: Int): Int =
+                if (position >= immutableCurrentList.size) manager.spanCount else 1
+        }
+    }
+
+    fun updatePaging(hasNext: Boolean, loading: Boolean, failed: Boolean = hasFailures) {
+        this.hasNext = hasNext
+        loadingMore = loading
+        hasFailures = failed
+        if (loadMore != null) notifyItemChanged(immutableCurrentList.size)
+    }
+
+    override fun onCreateFooter(parent: ViewGroup): ViewHolderState<Any> =
+        ViewHolderState(SearchLoadMoreBinding.inflate(LayoutInflater.from(parent.context), parent, false))
+
+    override fun onBindFooter(holder: ViewHolderState<Any>) {
+        val binding = holder.view as SearchLoadMoreBinding
+        binding.loadMore.visibility = if (hasNext || loadingMore) View.VISIBLE else View.GONE
+        binding.loadMore.isEnabled = !loadingMore
+        binding.loadMore.setText(when {
+            loadingMore -> R.string.loading
+            hasFailures -> R.string.search_retry_providers
+            else -> R.string.search_load_more
+        })
+        binding.loadMore.setOnClickListener { loadMore?.invoke() }
+    }
 
     private val coverRatio = if(isHorizontal) 1.8 else 0.68
 

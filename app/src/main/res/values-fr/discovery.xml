@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aggregate_home">Accueil agrégé</string>
+    <string name="aggregate_home_des">Réunit les nouveautés des extensions activées dans un accueil commun.</string>
+    <string name="home_news">Découvrir</string>
+    <string name="home_recent_additions">Derniers ajouts</string>
+    <string name="home_for_you">Pour toi · d’après ton historique</string>
+    <string name="home_for_you_movies">Films pour toi</string>
+    <string name="home_for_you_series">Séries pour toi</string>
+    <string name="home_movies">Films à découvrir</string>
+    <string name="home_series">Séries à découvrir</string>
+    <string name="home_anime">Animés et animation</string>
+    <string name="home_documentaries">Documentaires</string>
+    <string name="home_action">Action</string>
+    <string name="home_comedy">Comédie</string>
+    <string name="home_thriller">Thrillers</string>
+    <string name="home_scifi">Science-fiction</string>
+    <string name="home_discover">Encore à découvrir</string>
+    <string name="home_loading_news">Recherche des nouveautés…</string>
+    <string name="home_updating_news">Nouveautés · mise à jour…</string>
+    <string name="home_no_content">Aucun titre disponible. Vérifie les extensions et la connexion, puis actualise.</string>
+    <string name="home_partial_news">%1$d œuvres à découvrir · certaines nouveautés sont indisponibles</string>
+    <string name="home_ready_news">%1$d œuvres à découvrir</string>
+    <string name="home_refresh_news">Actualiser les nouveautés</string>
+    <string name="home_show_all">Voir plus</string>
+    <string name="home_show_all_named">Voir plus : %1$s</string>
+    <string name="home_load_more">Charger davantage</string>
+    <string name="home_load_more_retry">Échec du chargement · réessayer</string>
+    <string name="home_loading_more">Chargement…</string>
+    <string name="home_expanded_count">%1$d titres</string>
+    <string name="home_no_new_items">Aucun nouveau titre sur ces pages · continuer</string>
+    <string name="youtube_trailer">Bande-annonce</string>
+</resources>

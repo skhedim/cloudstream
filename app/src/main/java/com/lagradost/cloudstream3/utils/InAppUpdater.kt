@@ -21,6 +21,8 @@ import com.lagradost.cloudstream3.app
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safe
 import com.lagradost.cloudstream3.services.PackageInstallerService
+import com.lagradost.cloudstream3.ui.settings.GithubReleases
+import com.lagradost.cloudstream4.viewmodels.ReleaseVersion
 import com.lagradost.cloudstream3.utils.AppContextUtils.setDefaultFocus
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
@@ -38,10 +40,10 @@ import java.io.IOException
 import java.io.InputStreamReader
 
 object InAppUpdater {
-    private const val GITHUB_USER_NAME = "recloudstream"
-    private const val GITHUB_REPO = "cloudstream"
+    private const val GITHUB_USER_NAME = GithubReleases.APK_USERNAME
+    private const val GITHUB_REPO = GithubReleases.APK_REPOSITORY
 
-    private const val PRERELEASE_PACKAGE_NAME = "com.lagradost.cloudstream3.prerelease"
+    private const val PRERELEASE_PACKAGE_NAME = "com.lagradost.cloudstream3.prerelease.skhedim"
     private const val LOG_TAG = "InAppUpdater"
 
     @Serializable
@@ -98,55 +100,21 @@ object InAppUpdater {
     }
 
     private suspend fun Activity.getReleaseUpdate(): Update {
-        val url = "https://api.github.com/repos/$GITHUB_USER_NAME/$GITHUB_REPO/releases"
+        val url = "https://api.github.com/repos/$GITHUB_USER_NAME/$GITHUB_REPO/releases/latest"
         val headers = mapOf("Accept" to "application/vnd.github.v3+json")
-        val response = parseJson<Array<GithubRelease>>(
-            app.get(url, headers = headers).text
-        ).toList()
-
-        val versionRegex = Regex("""(.*?((\d+)\.(\d+)\.(\d+))\.apk)""")
-        val versionRegexLocal = Regex("""(.*?((\d+)\.(\d+)\.(\d+)).*)""")
-        val foundList = response.filter { rel ->
-            !rel.prerelease
-        }.sortedWith(compareBy { release ->
-            release.assets.firstOrNull { it.contentType == "application/vnd.android.package-archive" }?.name?.let { it1 ->
-                versionRegex.find(it1)?.groupValues?.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                }
-            }
-        }).toList()
-
-        val found = foundList.lastOrNull()
-        val foundAsset = found?.assets?.getOrNull(0)
-        val foundVersion = foundAsset?.name?.let { versionRegex.find(it) }
-
-        if (foundVersion == null) {
-            return Update(false, null, null, null, null)
-        }
-
-        val currentVersion = packageName?.let {
-            packageManager.getPackageInfo(it, 0)
-        }
-
-        val shouldUpdate = if (foundAsset.browserDownloadUrl.isBlank()) {
-            false
-        } else {
-            currentVersion?.versionName?.let { versionName ->
-                versionRegexLocal.find(versionName)?.groupValues?.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                }
-            }?.compareTo(
-                foundVersion.groupValues.let {
-                    it[3].toInt() * 100_000_000 + it[4].toInt() * 10_000 + it[5].toInt()
-                })!! < 0
-        }
+        val release = parseJson<GithubRelease>(app.get(url, headers = headers).text)
+        val version = release.tagName.removePrefix("v")
+        val asset = release.assets.firstOrNull {
+            it.contentType == GithubReleases.APK_CONTENT_TYPE && it.name == "$version.apk"
+        } ?: return Update(false, null, null, null, null)
 
         return Update(
-            shouldUpdate,
-            foundAsset.browserDownloadUrl,
-            foundVersion.groupValues[2],
-            found.body,
-            found.nodeId
+            ReleaseVersion.isNewer(version, BuildConfig.VERSION_NAME) &&
+                asset.browserDownloadUrl.isNotBlank(),
+            asset.browserDownloadUrl,
+            version,
+            release.body,
+            release.nodeId
         )
     }
 

@@ -9,12 +9,24 @@ import com.lagradost.cloudstream3.ui.download.DOWNLOAD_ACTION_PLAY_FILE
 import com.lagradost.cloudstream3.ui.download.DownloadButtonSetup.handleDownloadClick
 import com.lagradost.cloudstream3.ui.download.DownloadClickEvent
 import com.lagradost.cloudstream3.ui.result.START_ACTION_LOAD_EP
+import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream3.utils.AppContextUtils.loadSearchResult
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.downloader.DownloadObjects
 
 object SearchHelper {
-    fun handleSearchClickCallback(callback: SearchClickCallback) {
+    /** Carry the full canonical context into the existing detail destination. */
+    internal fun navigationCallback(callback: SearchClickCallback): SearchClickCallback {
+        callback.card as? AggregatedSearchResponse ?: return callback
+        if (callback.action == SEARCH_ACTION_FOCUSED) return callback
+        return SearchClickCallback(
+            if (callback.action == SEARCH_ACTION_SHOW_METADATA) SEARCH_ACTION_LOAD else callback.action,
+            callback.view, callback.position, callback.card,
+        )
+    }
+
+    fun handleSearchClickCallback(event: SearchClickCallback) {
+        val callback = navigationCallback(event)
         val card = callback.card
         when (callback.action) {
             SEARCH_ACTION_LOAD -> {

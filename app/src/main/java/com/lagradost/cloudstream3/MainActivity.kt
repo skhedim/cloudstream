@@ -2036,8 +2036,8 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
 //                && PREBUILT_REPOSITORIES.isNotEmpty()
             ) {
                 navController.navigate(
-                    R.id.navigation_setup_extensions,
-                    SetupFragmentExtensions.newInstance(false)
+                    R.id.navigation_catalog,
+                    com.lagradost.cloudstream3.ui.catalog.CatalogFragment.arguments(false)
                 )
             }
         } catch (e: Exception) {

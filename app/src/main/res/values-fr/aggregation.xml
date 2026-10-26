@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aggregate_search">Regrouper les résultats identiques</string>
+    <string name="aggregate_search_des">Afficher une entrée par film ou série identifiés. Prioritaire sur les lignes par fournisseur.</string>
+    <string name="search_load_more">Charger davantage de résultats</string>
+    <string name="search_retry_providers">Charger la suite / réessayer les résultats manquants</string>
+    <string name="search_voice_description">Recherche vocale</string>
+    <string name="canonical_unlocated_episodes">Épisodes à identifier</string>
+    <string name="canonical_partial_detail">Certaines données n’ont pas pu être chargées (%1$d/%2$d accès disponibles).</string>
+    <string name="canonical_detail_failed">Impossible de charger cette œuvre. Réessayez.</string>
+    <string name="canonical_unspecified_audio">Audio non précisé</string>
+    <string name="canonical_playback_version">Version</string>
+    <string name="canonical_version_auto">Auto — meilleure qualité</string>
+</resources>

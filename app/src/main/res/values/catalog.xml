@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_recommended">Recommended video providers only (French / English)</string>
+    <string name="catalog_animated_movies">Animated films</string>
+    <string name="catalog_other_languages">Other languages</string>
+    <string name="catalog_close">Done</string>
+    <string name="catalog_title">Configure catalogue</string>
+    <string name="catalog_description">Choose languages and videos. The recommended selection keeps a small catalogue; uncheck it for other video sources. Known intrusive packages, games and utilities are excluded. Extension language does not guarantee audio language.</string>
+    <string name="catalog_apply">Apply / update (%1$d)</string>
+    <string name="catalog_loading">Reading the MegaRepo catalogue…</string>
+    <string name="catalog_installing">%1$d / %2$d · %3$s</string>
+    <string name="catalog_error">Catalogue unavailable. Check your connection and retry.</string>
+    <string name="catalog_partial">%1$d repositories unavailable. You can apply the available catalogue or retry.</string>
+    <string name="catalog_ready">Ready. Choose at least one language and one media type.</string>
+    <string name="catalog_done">%1$d installed or updated · %2$d already up to date · %3$d failed</string>
+    <string name="catalog_reload">Reload catalogue</string>
+    <string name="catalog_choose_space">Choose catalogue</string>
+</resources>

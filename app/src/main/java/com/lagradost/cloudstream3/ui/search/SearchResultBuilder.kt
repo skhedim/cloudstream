@@ -17,6 +17,7 @@ import com.lagradost.cloudstream3.LiveSearchResponse
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.SearchQuality
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream3.isMovieType
 import com.lagradost.cloudstream3.syncproviders.SyncAPI
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
@@ -54,6 +55,10 @@ object SearchResultBuilder {
     ) {
         val cardView: ImageView = itemView.findViewById(R.id.imageView)
         val cardText: TextView? = itemView.findViewById(R.id.imageText)
+        val mediaInfo: TextView? = itemView.findViewById(R.id.search_media_info)
+        val aggregated = card as? AggregatedSearchResponse
+        mediaInfo?.text = aggregated?.media?.year?.toString().orEmpty()
+        mediaInfo?.isVisible = aggregated?.media?.year != null
 
         val textIsDub: TextView? = itemView.findViewById(R.id.text_is_dub)
         val textIsSub: TextView? = itemView.findViewById(R.id.text_is_sub)
@@ -241,7 +246,7 @@ object SearchResultBuilder {
             focus(view, b)
         }
 
-        when (card) {
+        when (val card = aggregated?.representative ?: card) {
             is LiveSearchResponse -> {
                 SubtitleHelper.getFlagFromIso(card.lang)?.let { flagEmoji ->
                     textFlag?.apply {

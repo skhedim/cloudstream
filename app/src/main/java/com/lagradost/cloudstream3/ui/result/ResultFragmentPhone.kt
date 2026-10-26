@@ -399,7 +399,8 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                 storedData.apiName,
                 storedData.showFillers,
                 storedData.dubStatus,
-                storedData.start
+                storedData.start,
+                canonicalRequest = storedData.canonicalRequest
             )
         }
     }
@@ -463,7 +464,8 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                 storedData.apiName,
                 storedData.showFillers,
                 storedData.dubStatus,
-                storedData.start
+                storedData.start,
+                canonicalRequest = storedData.canonicalRequest
             )
 
         setUrl(storedData.url)
@@ -485,6 +487,8 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
 
         // ===== ===== =====
 
+        binding.resultYoutube.isGone = storedData.name.isBlank()
+        binding.resultYoutube.setOnClickListener { TrailerSearch.open(this, storedData.name, null) }
         binding.resultSearch.isGone = storedData.name.isBlank()
         binding.resultSearch.setOnClickListener {
             QuickSearchFragment.pushSearch(activity, storedData.name)
@@ -498,7 +502,8 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                     storedData.apiName,
                     storedData.showFillers,
                     storedData.dubStatus,
-                    storedData.start
+                    storedData.start,
+                    canonicalRequest = storedData.canonicalRequest
                 )
             }
 
@@ -938,7 +943,7 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                     resultInfo.setText(d.metaText)
                     resultNoEpisodes.setText(d.noEpisodesFoundText)
                     resultTitle.setText(d.titleText)
-                    resultMetaSite.setText(d.apiName)
+                    resultMetaSite.setText(if (d.isCanonical) null else d.apiName)
                     resultMetaType.setText(d.typeText)
                     resultMetaYear.setText(d.yearText)
                     resultMetaDuration.setText(d.durationText)
@@ -1014,6 +1019,10 @@ open class ResultFragmentPhone : BaseFragment<FragmentResultSwipeBinding>(
                     }
 
                     binding.apply {
+                        resultYoutube.isGone = d.title.isBlank()
+                        resultYoutube.setOnClickListener {
+                            TrailerSearch.open(this@ResultFragmentPhone, d.title, d.yearText?.asStringNull(context)?.toIntOrNull())
+                        }
                         resultSearch.isGone = d.title.isBlank()
                         resultSearch.setOnClickListener {
                             QuickSearchFragment.pushSearch(activity, d.title)

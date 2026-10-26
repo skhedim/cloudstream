@@ -42,7 +42,7 @@ object GithubReleases : GithubRepository {
         @JsonProperty("object") @SerialName("object") val githubObject: GithubObject,
     )
 
-    const val APK_USERNAME = "recloudstream"
+    const val APK_USERNAME = "skhedim"
     const val APK_REPOSITORY = "cloudstream"
     const val APK_PRERELEASE = "pre-release"
     const val APK_CONTENT_TYPE = "application/vnd.android.package-archive"
@@ -87,7 +87,8 @@ object GithubReleases : GithubRepository {
 
         // Find the first correct asset, given that we might have other binaries we release in the same version
         val foundAsset = latestRelease.assets.firstOrNull { asset ->
-            asset.contentType == contentType
+            asset.contentType == contentType &&
+                (prerelease || asset.name == "${latestRelease.tagName.removePrefix("v")}.apk")
         }
 
         if (foundAsset == null) {

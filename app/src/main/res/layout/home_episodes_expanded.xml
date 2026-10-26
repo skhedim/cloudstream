@@ -5,7 +5,7 @@
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:background="?attr/primaryGrayBackground"
-        android:layout_height="wrap_content">
+        android:layout_height="match_parent">
 
     <FrameLayout
             android:nextFocusDown="@id/home_expanded_recycler"
@@ -47,11 +47,31 @@
                 android:contentDescription="@string/home_expanded_hide" />
     </FrameLayout>
 
+    <TextView
+            android:id="@+id/home_expanded_count"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="12dp"
+            android:paddingBottom="6dp"
+            android:textColor="?attr/textColor"
+            android:textSize="14sp" />
+
     <com.lagradost.cloudstream3.ui.AutofitRecyclerView
             android:descendantFocusability="afterDescendants"
 
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="0dp"
+            android:layout_weight="1"
             android:id="@+id/home_expanded_recycler"
             tools:listitem="@layout/search_result_grid" />
+    <com.google.android.material.button.MaterialButton
+            android:id="@+id/home_expanded_load_more"
+            style="@style/BlackButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:layout_marginHorizontal="12dp"
+            android:nextFocusUp="@id/home_expanded_recycler"
+            android:text="@string/home_load_more"
+            android:visibility="gone" />
 </LinearLayout>

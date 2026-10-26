@@ -28,6 +28,7 @@ import com.lagradost.cloudstream3.insecureApp
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.network.initClient
 import com.lagradost.cloudstream3.ui.settings.SettingsProvidersScreen.toStringRes
+import com.lagradost.cloudstream3.utils.UIHelper.navigate
 import com.lagradost.cloudstream3.utils.BatteryOptimizationChecker.isAppRestricted
 import com.lagradost.cloudstream3.utils.BatteryOptimizationChecker.showRequestIgnoreBatteryOptDialog
 import com.lagradost.cloudstream3.utils.SubtitleHelper.fromTagToLanguageName
@@ -114,6 +115,11 @@ object SettingsGeneralScreen : SearchableSettings {
         }.sortedBy { fromTagToLanguageName(it) ?: it }
 
         return persistentListOf(
+            Preference.PreferenceItem.TextPreference(
+                title = stringResource(R.string.catalog_title),
+                icon = painterResource(R.drawable.movie_edit_24px),
+                onClick = { activity?.navigate(R.id.navigation_catalog) }
+            ),
             Preference.PreferenceGroup(title = stringResource(R.string.extension_language), preferenceItems = persistentListOf(
                 Preference.PreferenceItem.ListPreference(
                     preference = settings.general.locale,
@@ -246,10 +252,10 @@ object SettingsGeneralScreen : SearchableSettings {
                 preferenceItems = persistentListOf(
                     Preference.PreferenceItem.TextPreference(
                         title = stringResource(R.string.github),
-                        subtitle = "https://github.com/recloudstream/cloudstream",
+                        subtitle = "https://github.com/skhedim/cloudstream",
                         icon = painterResource(R.drawable.ic_github_logo),
                         onClick = {
-                            CloudStreamApp.openBrowser("https://github.com/recloudstream/cloudstream")
+                            CloudStreamApp.openBrowser("https://github.com/skhedim/cloudstream")
                         }
                     ),
                     Preference.PreferenceItem.TextPreference(

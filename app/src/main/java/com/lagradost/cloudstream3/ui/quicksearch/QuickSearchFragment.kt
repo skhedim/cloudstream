@@ -13,7 +13,6 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.lagradost.cloudstream3.APIHolder.getApiFromNameNull
 import com.lagradost.cloudstream3.CommonActivity.activity
@@ -37,9 +36,7 @@ import com.lagradost.cloudstream3.ui.settings.Globals.EMULATOR
 import com.lagradost.cloudstream3.ui.settings.Globals.PHONE
 import com.lagradost.cloudstream3.ui.settings.Globals.TV
 import com.lagradost.cloudstream3.ui.settings.Globals.isLayout
-import com.lagradost.cloudstream3.utils.AppContextUtils.filterProviderByPreferredMedia
 import com.lagradost.cloudstream3.utils.AppContextUtils.filterSearchResultByFilmQuality
-import com.lagradost.cloudstream3.utils.AppContextUtils.isRecyclerScrollable
 import com.lagradost.cloudstream3.utils.AppContextUtils.ownShow
 import com.lagradost.cloudstream3.utils.Coroutines.ioSafe
 import com.lagradost.cloudstream3.utils.UIHelper.fixSystemBarsPadding
@@ -48,6 +45,7 @@ import com.lagradost.cloudstream3.utils.UIHelper.hideKeyboard
 import com.lagradost.cloudstream3.utils.UIHelper.navigate
 import com.lagradost.cloudstream3.utils.UIHelper.popCurrentPage
 import java.util.concurrent.locks.ReentrantLock
+import com.lagradost.cloudstream4.AppSettings
 
 class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
     BaseFragment.BindingCreator.Inflate(QuickSearchBinding::inflate)
@@ -92,6 +90,7 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
     private lateinit var searchViewModel: SearchViewModel
 
     private var bottomSheetDialog: BottomSheetDialog? = null
+    private var awaitingFirstResults = false
 
     override fun fixLayout(view: View) {
         fixSystemBarsPadding(view)
@@ -121,13 +120,19 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
     }
 
     fun search(context: Context?, query: String, isQuickSearch: Boolean): Boolean {
-        (providers ?: context?.filterProviderByPreferredMedia(hasHomePageIsRequired = false)
-            ?.map { it.name }?.toSet())?.let { active ->
+        context?.let {
+            val preferences = AppSettings(it).ui
+            searchViewModel.configure(preferences.aggregateSearch.get(), preferences.filterQuality.get().toSet())
+        }
+        (providers ?: context?.let { ctx ->
+            com.lagradost.cloudstream3.ui.search.SearchScope.availableProviders(ctx, AppSettings(ctx).ui.aggregateSearch.get())
+                .map { it.name }.toSet()
+        })?.let { active ->
             searchViewModel.searchAndCancel(
                 query = query,
                 ignoreSettings = false,
                 providersActive = active,
-                isQuickSearch = isQuickSearch
+                isQuickSearch = isQuickSearch,
             )
             return true
         }
@@ -144,44 +149,24 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
             getApiFromNameNull(providers?.first())?.hasQuickSearch ?: false
         } else false
 
+        val preferences = AppSettings(binding.root.context).ui
+        searchViewModel.configure(preferences.aggregateSearch.get(), preferences.filterQuality.get().toSet())
+        val isGridSearch = preferences.aggregateSearch.get() || isSingleProvider
         val firstProvider = providers?.firstOrNull()
-        if (isSingleProvider && firstProvider != null) {
+        if (isGridSearch) {
             binding.quickSearchAutofitResults.apply {
                 setRecycledViewPool(SearchAdapter.sharedPool)
                 adapter = SearchAdapter(
                     this,
+                    loadMore = searchViewModel::loadMore,
                 ) { callback ->
                     SearchHelper.handleSearchClickCallback(callback)
                 }
             }
 
-            binding.quickSearchAutofitResults.addOnScrollListener(object :
-                RecyclerView.OnScrollListener() {
-                var expandCount = 0
-
-                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                    super.onScrollStateChanged(recyclerView, newState)
-
-                    val adapter = recyclerView.adapter
-                    if (adapter !is SearchAdapter) return
-
-                    val count = adapter.itemCount
-                    val currentHasNext = adapter.hasNext
-
-                    if (!recyclerView.isRecyclerScrollable() && currentHasNext && expandCount != count) {
-                        expandCount = count
-                        ioSafe {
-                            searchViewModel.expandAndReturn(firstProvider)
-                        }
-                    }
-                }
-            })
-
-            try {
-                binding.quickSearch.queryHint =
-                    getString(R.string.search_hint_site).format(firstProvider)
-            } catch (e: Exception) {
-                logError(e)
+            (binding.quickSearchAutofitResults.adapter as SearchAdapter).configurePagingSpan()
+            if (!preferences.aggregateSearch.get() && isSingleProvider && firstProvider != null) {
+                binding.quickSearch.queryHint = getString(R.string.search_hint_site).format(firstProvider)
             }
         } else {
             binding.quickSearchMasterRecycler.setRecycledViewPool(ParentItemAdapter.sharedPool)
@@ -209,8 +194,11 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
                     })
             binding.quickSearchMasterRecycler.layoutManager = GridLayoutManager(context, 1)
         }
-        binding.quickSearchAutofitResults.isVisible = isSingleProvider
-        binding.quickSearchMasterRecycler.isGone = isSingleProvider
+        binding.quickSearchAutofitResults.isVisible = isGridSearch
+        binding.quickSearchMasterRecycler.isGone = isGridSearch
+        val resultsFocus = if (isGridSearch) R.id.quick_search_autofit_results else R.id.quick_search_master_recycler
+        binding.quickSearch.nextFocusDownId = resultsFocus
+        binding.quickSearch.findViewById<View>(androidx.appcompat.R.id.search_src_text)?.nextFocusDownId = resultsFocus
 
         val listLock = ReentrantLock()
         observe(searchViewModel.currentSearch) { list ->
@@ -270,10 +258,14 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
                     it.value.let { data ->
                         val adapter =
                             (binding.quickSearchAutofitResults.adapter as? SearchAdapter)
-                        adapter?.submitList(
-                            context?.filterSearchResultByFilmQuality(data.list) ?: data.list
-                        )
-                        adapter?.hasNext = data.hasNext
+                        adapter?.updatePaging(data.hasNext, searchViewModel.loadingMore.value == true, data.hasFailures)
+                        adapter?.submitList(data.list, Runnable {
+                            adapter.updatePaging(data.hasNext, searchViewModel.loadingMore.value == true, data.hasFailures)
+                            if (awaitingFirstResults && data.list.isNotEmpty()) {
+                                awaitingFirstResults = false
+                                binding.quickSearchAutofitResults.scrollToPosition(0)
+                            }
+                        })
                     }
                     searchExitIcon?.alpha = 1f
                     binding.quickSearchLoadingBar.alpha = 0f
@@ -286,9 +278,20 @@ class QuickSearchFragment : BaseFragment<QuickSearchBinding>(
                 }
 
                 is Resource.Loading -> {
+                    awaitingFirstResults = true
+                    (binding.quickSearchAutofitResults.adapter as? SearchAdapter)?.apply {
+                        updatePaging(false, false, false)
+                        submitList(emptyList())
+                    }
                     searchExitIcon?.alpha = 0f
                     binding.quickSearchLoadingBar.alpha = 1f
                 }
+            }
+        }
+
+        observe(searchViewModel.loadingMore) { loading ->
+            (binding.quickSearchAutofitResults.adapter as? SearchAdapter)?.let { adapter ->
+                adapter.updatePaging(adapter.hasNext, loading)
             }
         }
 

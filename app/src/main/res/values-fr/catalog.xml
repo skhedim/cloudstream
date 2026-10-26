@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="catalog_recommended">Uniquement les fournisseurs vidéo recommandés (français / anglais)</string>
+    <string name="catalog_animated_movies">Films d’animation</string>
+    <string name="catalog_other_languages">Autres langues</string>
+    <string name="catalog_close">Terminer</string>
+    <string name="catalog_title">Configurer le catalogue</string>
+    <string name="catalog_description">Choisissez les langues et vidéos. La sélection recommandée privilégie un catalogue court ; décochez-la pour les autres sources vidéo. Les jeux, utilitaires et paquets intrusifs connus sont exclus. La langue d’une extension ne garantit pas celle des pistes audio.</string>
+    <string name="catalog_apply">Mettre à jour (%1$d)</string>
+    <string name="catalog_loading">Lecture du catalogue MegaRepo…</string>
+    <string name="catalog_installing">%1$d / %2$d · %3$s</string>
+    <string name="catalog_error">Catalogue indisponible. Vérifiez la connexion puis réessayez.</string>
+    <string name="catalog_partial">Dépôts indisponibles : %1$d. Vous pouvez appliquer le catalogue disponible ou réessayer.</string>
+    <string name="catalog_ready">Prêt. Choisissez au moins une langue et un type de contenu.</string>
+    <string name="catalog_done">%1$d installées ou mises à jour · %2$d déjà à jour · %3$d échecs</string>
+    <string name="catalog_reload">Recharger le catalogue</string>
+    <string name="catalog_choose_space">Choisir le catalogue</string>
+</resources>

@@ -31,6 +31,12 @@ import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Contract
 import java.util.concurrent.ConcurrentHashMap
 
+import com.lagradost.cloudstream3.ui.player.aggregation.PlaybackSources
+import com.lagradost.cloudstream3.ui.player.aggregation.SourceVersion
+import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
+import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
+import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
+
 typealias VideoLink = Pair<ExtractorLink?, ExtractorUri?>
 
 data class GeneratorState(
@@ -60,6 +66,8 @@ data class VideoState(
     val loading: Resource<Unit> = Resource.Loading(),
     val generatorState: GeneratorState? = null,
     val instance: Int,
+    val canonical: Boolean = false,
+    val sourceVersion: SourceVersion = SourceVersion.Auto,
 ) {
     /**
      * This acts as a local cache for sorted links that are not copied over by the copy constructor.
@@ -106,13 +114,21 @@ data class VideoState(
         val hideErrorSources =
             QualityDataHelper.getProfileSetting(qualityProfile, ProfileSettings.HideErrorSources)
 
-        return links.map { link ->
-            // negative because we want to sort highest quality first
-            link.toDisplayLink(qualityProfile, hideNegativeSources, hideErrorSources)
-        }.sortedBy {
-            // negative because we want to sort highest quality first
-            -it.priority
-        }.also { value -> sortedLinks[qualityProfile] = value }
+        val versionExists = links.any { PlaybackSources.version(it.first) == sourceVersion }
+        val requested = sourceVersion.takeIf { versionExists } ?: SourceVersion.Auto
+        val display = links.map { link ->
+            val base = link.toDisplayLink(qualityProfile, hideNegativeSources, hideErrorSources)
+            if (canonical && requested != SourceVersion.Auto && PlaybackSources.version(link.first) != requested)
+                base.copy(shouldUseLink = false) else base
+        }
+        return (if (canonical) display.sortedWith(
+            compareByDescending<DisplayLink> { PlaybackSources.versionRank(PlaybackSources.version(it.link.first)) }
+                .thenByDescending { it.priority }
+                .thenByDescending { PlaybackSources.quality(it.link.first) }
+                .thenBy { PlaybackSources.metadata(it.link.first)?.ordinal ?: Int.MAX_VALUE }
+                .thenBy { it.link.first?.name.orEmpty() }.thenBy { it.link.first?.url.orEmpty() }
+        ) else display.sortedByDescending { it.priority })
+            .also { sortedLinks[qualityProfile] = it }
     }
 
     @Contract(pure = true)
@@ -249,6 +265,15 @@ class PlayerGeneratorViewModel : ViewModel() {
     private var currentLoadingEpisodeId: Int? = null
 
     var forceClearCache = false
+    private var preferredVersion = runCatching {
+        SourceVersion.valueOf(getKey<String>("$currentAccount/canonical_source_version") ?: "Auto")
+    }.getOrDefault(SourceVersion.Auto)
+
+    fun selectSourceVersion(version: SourceVersion) {
+        preferredVersion = version
+        setKey("$currentAccount/canonical_source_version", version.name)
+        modifyState { copy(sourceVersion = version) }
+    }
 
     fun setSubtitleYear(year: Int?) {
         _currentSubtitleYear.postValue(year)
@@ -390,6 +415,8 @@ class PlayerGeneratorViewModel : ViewModel() {
         modifyState {
             VideoState(
                 loading = Resource.Loading(),
+                canonical = (generator?.videos?.getOrNull(index) as? ResultEpisode)?.sourceBindings?.isNotEmpty() == true,
+                sourceVersion = preferredVersion,
                 generatorState = generator?.let { gen ->
                     GeneratorState(
                         meta = gen.videos.getOrNull(index),

@@ -137,6 +137,12 @@ import com.lagradost.cloudstream3.utils.downloader.DownloadUtils.downloadSubtitl
 import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.txt
+import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetail
+import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailLoader
+import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
+import com.lagradost.cloudstream3.utils.AppUtils.parseJson
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -194,6 +200,7 @@ data class ResultData(
     val nextAiringEpisode: UiText?,
     val plotHeaderText: UiText,
     val posterHeaders: Map<String, String>? = null,
+    val isCanonical: Boolean = false,
 )
 
 data class CheckDuplicateData(
@@ -455,8 +462,17 @@ data class ExtractedTrailerData(
 
 class ResultViewModel2 : ViewModel() {
     private var currentResponse: LoadResponse? = null
+    private var canonicalDetail: CanonicalDetail? = null
+    private var detailLoadJob: Job? = null
+    override fun onCleared() {
+        detailLoadJob?.cancel()
+        currentLoadLinkJob?.cancel()
+        super.onCleared()
+    }
     var EPISODE_RANGE_SIZE: Int = 20
     fun clear() {
+        detailLoadJob?.cancel()
+        canonicalDetail = null
         currentResponse = null
         _page.postValue(null)
     }
@@ -2059,7 +2075,8 @@ class ResultViewModel2 : ViewModel() {
         _selectedDubStatus.postValue(
 
             if (isMovie || currentDubStatus.size <= 1) null else
-                txt(indexer.dubStatus)
+                if (canonicalDetail != null && indexer.dubStatus == DubStatus.None)
+                    txt(R.string.canonical_unspecified_audio) else txt(indexer.dubStatus)
 
         )
 
@@ -2153,6 +2170,7 @@ class ResultViewModel2 : ViewModel() {
         updateEpisodes: Boolean,
         updateFillers: Boolean,
     ) {
+        kotlin.coroutines.coroutineContext.ensureActive()
         currentId = mainId
         currentResponse = loadResponse
         postPage(loadResponse, apiRepository)
@@ -2169,13 +2187,15 @@ class ResultViewModel2 : ViewModel() {
         mainId: Int,
         updateFillers: Boolean
     ) {
+        val detail = canonicalDetail
         _episodes.postValue(Resource.Loading())
 
         if (updateFillers) {
             updateFillers(loadResponse)
         }
+        kotlin.coroutines.coroutineContext.ensureActive()
 
-        val allEpisodes = when (loadResponse) {
+        val projectedEpisodes = when (loadResponse) {
             is AnimeLoadResponse -> {
                 val existingEpisodes = HashSet<Int>()
                 val episodes: MutableMap<EpisodeIndexer, MutableList<ResultEpisode>> =
@@ -2364,6 +2384,10 @@ class ResultViewModel2 : ViewModel() {
             }
         }
 
+        val allEpisodes = detail?.let { detail ->
+            projectedEpisodes.mapValues { (_, episodes) -> episodes.map(detail::resolve) }
+        } ?: projectedEpisodes
+        kotlin.coroutines.coroutineContext.ensureActive()
         val seasonsSelection = mutableSetOf<Int>()
         val dubSelection = mutableSetOf<DubStatus>()
         allEpisodes.keys.forEach { key ->
@@ -2372,10 +2396,14 @@ class ResultViewModel2 : ViewModel() {
         }
         currentDubStatus = dubSelection.toList()
         currentSeasons = seasonsSelection.toList()
-        _dubSubSelections.postValue(dubSelection.map { txt(it) to it })
+        _dubSubSelections.postValue(dubSelection.map {
+            (if (detail != null && it == DubStatus.None) txt(R.string.canonical_unspecified_audio)
+            else txt(it)) to it
+        })
         if (loadResponse is EpisodeResponse) {
             _seasonSelections.postValue(seasonsSelection.map { seasonNumber ->
-                loadResponse.seasonNames.getSeasonTxt(seasonNumber) to seasonNumber
+                (if (canonicalDetail != null && seasonNumber == -1) txt(R.string.canonical_unlocated_episodes)
+                else loadResponse.seasonNames.getSeasonTxt(seasonNumber)) to seasonNumber
             })
         }
 
@@ -2414,7 +2442,7 @@ class ResultViewModel2 : ViewModel() {
         val response = currentResponse ?: return null
         // kinda ugly ik
         val episode =
-            currentEpisodes.values.flatten().firstOrNull { it.id == resumeId } ?: return null
+            currentEpisodes.values.flatten().firstOrNull { it.id == resumeId || resumeId in it.legacyIds } ?: return null
 
         val isMovie = response.isMovie()
 
@@ -2502,7 +2530,12 @@ class ResultViewModel2 : ViewModel() {
     // this instantly updates the metadata on the page
     private fun postPage(loadResponse: LoadResponse, apiRepository: APIRepository) {
         _recommendations.postValue(loadResponse.recommendations ?: emptyList())
-        _page.postValue(Resource.Success(loadResponse.toResultData(apiRepository)))
+        val data = loadResponse.toResultData(apiRepository)
+        _page.postValue(Resource.Success(canonicalDetail?.let { detail ->
+            data.copy(isCanonical = true, metaText = if (detail.incomplete)
+                txt(R.string.canonical_partial_detail, detail.loadedBindings, detail.requestedBindings)
+                else null)
+        } ?: data))
     }
 
     fun hasLoaded() = currentResponse != null
@@ -2530,7 +2563,7 @@ class ResultViewModel2 : ViewModel() {
                 START_ACTION_LOAD_EP -> {
                     val all = currentEpisodes.values.flatten()
                     val episode =
-                        autostart.id?.let { id -> all.firstOrNull { it.id == id } }
+                        autostart.id?.let { id -> all.firstOrNull { it.id == id || id in it.legacyIds } }
                             ?: autostart.episode?.let { ep ->
                                 currentEpisodes[currentIndex]?.firstOrNull { it.episode == ep && it.season == autostart.episode }
                                     ?: all.firstOrNull { it.episode == ep && it.season == autostart.episode }
@@ -2617,13 +2650,53 @@ class ResultViewModel2 : ViewModel() {
         dubStatus: DubStatus,
         autostart: AutoResume?,
         loadTrailers: Boolean = true,
-    ) =
-        ioSafe {
+        canonicalRequest: String? = null,
+    ): Job {
+        detailLoadJob?.cancel()
+        return ioSafe {
             _page.postValue(Resource.Loading(url))
             _episodes.postValue(Resource.Loading())
 
             preferDubStatus = dubStatus
             currentShowFillers = showFillers
+
+            canonicalDetail = null
+            currentResponse = null
+            val request = canonicalRequest?.let {
+                runCatching { parseJson<CanonicalDetailRequest>(it) }.getOrNull()
+            } ?: CanonicalDetailStore.find(apiName, url)
+            if (request != null) {
+                val pinned = CanonicalDetailStore.pin(request)
+                val details = CanonicalDetailLoader().load(pinned)
+                ensureActive()
+                val canonical = CanonicalDetail.create(pinned, details)
+                ensureActive()
+                if (canonical == null) {
+                    _page.postValue(Resource.Failure(false,
+                        context?.getString(R.string.canonical_detail_failed) ?: "Unable to load this title"))
+                    return@ioSafe
+                }
+                canonicalDetail = canonical
+                CanonicalDetailStore.remember(canonical.request)
+                val response = canonical.response
+                currentRepo = canonical.representative.repo
+                val mainId = response.getId()
+                preferDubStatus = getDub(mainId) ?: preferDubStatus
+                preferStartEpisode = getResultEpisode(mainId)
+                preferStartSeason = getResultSeason(mainId) ?: 1
+                setKey(DOWNLOAD_HEADER_CACHE, mainId.toString(),
+                    DownloadObjects.DownloadHeaderCached(apiName = response.apiName, url = response.url,
+                        type = response.type, name = response.name, poster = response.posterUrl,
+                        id = mainId, cacheTime = System.currentTimeMillis()))
+                if (loadTrailers) loadTrailers(response)
+                postSuccessful(response, mainId, canonical.representative.repo, true, showFillers)
+                ensureActive()
+                if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
+                    com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical)
+                }
+                handleAutoStart(activity, autostart)
+                return@ioSafe
+            }
 
             // set api
             val api = APIHolder.getApiFromNameNull(apiName) ?: APIHolder.getApiFromUrlNull(url)
@@ -2705,5 +2778,6 @@ class ResultViewModel2 : ViewModel() {
                     debugException { "Invalid load result" }
                 }
             }
-        }
+        }.also { detailLoadJob = it }
+    }
 }

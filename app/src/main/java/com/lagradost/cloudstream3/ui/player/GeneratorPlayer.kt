@@ -79,6 +79,8 @@ import com.lagradost.cloudstream3.ui.download.DownloadButtonSetup
 import com.lagradost.cloudstream3.ui.player.CS3IPlayer.Companion.preferredAudioTrackLanguage
 import com.lagradost.cloudstream3.ui.player.CustomDecoder.Companion.updateForcedEncoding
 import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper.Companion.toSubtitleMimeType
+import com.lagradost.cloudstream3.ui.player.aggregation.SourceVersion
+import com.lagradost.cloudstream3.ui.player.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
 import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper
@@ -225,7 +227,8 @@ class GeneratorPlayer : FullScreenPlayer() {
     override fun onTracksInfoChanged() {
         val tracks = player.getVideoTracks()
         playerBinding?.playerTracksBtt?.isVisible =
-            tracks.allVideoTracks.size > 1 || tracks.allAudioTracks.size > 1
+            (::viewModel.isInitialized && viewModel.state.canonical && viewModel.state.links.isNotEmpty()) ||
+                tracks.allVideoTracks.size > 1 || tracks.allAudioTracks.size > 1
         // Only set the preferred language if it is available.
         // Otherwise, it may give some users audio track init failed!
         if (tracks.allAudioTracks.any { it.language == preferredAudioTrackLanguage }) {
@@ -497,7 +500,7 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
     }
 
-    private fun loadLink(link: VideoLink?, sameEpisode: Boolean) {
+    private fun loadLink(link: VideoLink?, sameEpisode: Boolean, autoPlay: Boolean? = true) {
         if (link == null) return
         isPlayerActive.set(true)
         // manage UI
@@ -539,7 +542,8 @@ class GeneratorPlayer : FullScreenPlayer() {
                 (if (sameEpisode) currentSelectedSubtitles else null) ?: getAutoSelectSubtitle(
                     subtitles, settings = true, downloads = true
                 ),
-                preview = true
+                preview = true,
+                autoPlay = autoPlay
             )
         }
 
@@ -1436,6 +1440,47 @@ class GeneratorPlayer : FullScreenPlayer() {
 
                 binding.videoTracksHolder.isVisible = currentVideoTracks.size > 1
                 binding.audioTracksHolder.isVisible = currentAudioTracks.size > 1
+                val availableVersions = viewModel.state.links.map { PlaybackSources.version(it.first) }
+                    .distinct().sortedByDescending(PlaybackSources::versionRank)
+                val versions = listOf(SourceVersion.Auto) + availableVersions
+                binding.sourceVersionHolder.isVisible = viewModel.state.canonical && availableVersions.isNotEmpty()
+                val initialVersion = viewModel.state.sourceVersion
+                var versionIndex = versions.indexOf(initialVersion).coerceAtLeast(0)
+                var versionTouched = false
+                binding.sourceVersionList.apply {
+                    adapter = ArrayAdapter(ctx, R.layout.sort_bottom_single_choice, versions.map {
+                        when (it) {
+                            SourceVersion.Auto -> ctx.getString(R.string.canonical_version_auto)
+                            SourceVersion.VF -> "VF"
+                            SourceVersion.VOST -> "VOST"
+                            SourceVersion.Unknown -> ctx.getString(R.string.canonical_unspecified_audio)
+                        }
+                    })
+                    choiceMode = AbsListView.CHOICE_MODE_SINGLE
+                    setSelection(versionIndex)
+                    setItemChecked(versionIndex, true)
+                    setOnItemClickListener { _, _, which, _ ->
+                        versionIndex = which
+                        versionTouched = true
+                        setItemChecked(which, true)
+                    }
+                    nextFocusRightId = when {
+                        binding.videoTracksHolder.isVisible -> R.id.video_tracks_list
+                        binding.audioTracksHolder.isVisible -> R.id.auto_tracks_list
+                        else -> R.id.apply_btt
+                    }
+                }
+                if (binding.sourceVersionHolder.isVisible) {
+                    videosList.nextFocusLeftId = R.id.source_version_list
+                    audioList.nextFocusLeftId = if (binding.videoTracksHolder.isVisible)
+                        R.id.video_tracks_list else R.id.source_version_list
+                    binding.applyBtt.nextFocusLeftId = when {
+                        binding.audioTracksHolder.isVisible -> R.id.auto_tracks_list
+                        binding.videoTracksHolder.isVisible -> R.id.video_tracks_list
+                        else -> R.id.source_version_list
+                    }
+                    binding.sourceVersionList.requestFocus()
+                }
 
                 fun dismiss() {
                     if (isPlaying) {
@@ -1540,6 +1585,17 @@ class GeneratorPlayer : FullScreenPlayer() {
                 }
 
                 binding.applyBtt.setOnClickListener {
+                    if (binding.sourceVersionHolder.isVisible && versionTouched) {
+                        viewModel.selectSourceVersion(versions[versionIndex])
+                        val best = viewModel.state.sortLinks(currentQualityProfile).firstOrNull { it.shouldUseLink }?.link
+                        if (best != null && best != currentSelectedLink) {
+                            // Dismiss restores the original play/pause state; sameEpisode preserves position.
+                            trackDialog.dismissSafe(activity)
+                            this.selectTrackDialog = null
+                            loadLink(best, sameEpisode = true, autoPlay = isPlaying)
+                            return@setOnClickListener
+                        }
+                    }
                     val currentTrack = currentAudioTracks.getOrNull(audioIndexStart)
                     player.setPreferredAudioTrack(
                         currentTrack?.language,
@@ -2379,7 +2435,7 @@ class GeneratorPlayer : FullScreenPlayer() {
             }
 
             safe {
-                if (!isPlayerActive.get() && viewModel.state.links.any { link ->
+                if (!viewModel.state.canonical && !isPlayerActive.get() && viewModel.state.links.any { link ->
                         getLinkPriority(currentQualityProfile, link.first) >=
                                 QualityDataHelper.AUTO_SKIP_PRIORITY
                     }

@@ -65,6 +65,7 @@ android {
     @Suppress("UnstableApiUsage")
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
     }
 
     // Looks like google likes to add metadata only they can read https://gitlab.com/IzzyOnDroid/repo/-/work_items/491
@@ -89,10 +90,10 @@ android {
         // so won't kill the configuration cache.
         if (System.getenv("SIGNING_KEY_ALIAS") != null) {
             create("prerelease") {
+                val explicitStore = providers.environmentVariable("SIGNING_STORE_FILE").orNull
                 val tmpFilePath = System.getProperty("user.home") + "/work/_temp/keystore/"
-                val prereleaseStoreFile: File? = File(tmpFilePath).listFiles()?.first()
-
-                storeFile = prereleaseStoreFile?.let { file(it) }
+                storeFile = explicitStore?.let { file(it) }
+                    ?: File(tmpFilePath).listFiles()?.firstOrNull()
                 storePassword = System.getenv("SIGNING_STORE_PASSWORD")
                 keyAlias = System.getenv("SIGNING_KEY_ALIAS")
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
@@ -106,8 +107,9 @@ android {
         applicationId = "com.lagradost.cloudstream3"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        versionCode = libs.versions.versionCode.get().toInt()
-        versionName = libs.versions.versionName.get()
+        // CI run numbers make every published fork APK installable over its predecessor.
+        versionCode = providers.gradleProperty("forkVersionCode").orElse("1000000").get().toInt()
+        versionName = providers.gradleProperty("forkVersionName").orElse("1.0.0").get()
 
         manifestPlaceholders["target_sdk_version"] = libs.versions.targetSdk.get()
 
@@ -144,6 +146,10 @@ android {
 
     buildTypes {
         release {
+            applicationIdSuffix = ".skhedim"
+            if (signingConfigs.names.contains("prerelease")) {
+                signingConfig = signingConfigs.getByName("prerelease")
+            }
             isDebuggable = false
             isMinifyEnabled = false
             isShrinkResources = false
@@ -217,6 +223,7 @@ android {
 dependencies {
     // Testing
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
     testImplementation(libs.json)
     androidTestImplementation(libs.core)
     androidTestImplementation(libs.espresso.core)
@@ -358,4 +365,20 @@ dokka {
             }
         }
     }
+}
+
+tasks.withType<Test>().configureEach {
+    // Robolectric's sandbox needs access to these JDK internals on Java 17+.
+    jvmArgs(
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED",
+        "--add-opens=java.base/java.io=ALL-UNNAMED",
+        "--add-opens=java.base/java.net=ALL-UNNAMED",
+        "--add-opens=java.base/java.security=ALL-UNNAMED",
+        "--add-opens=java.base/java.text=ALL-UNNAMED",
+        "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED",
+        "--add-opens=java.desktop/java.awt.font=ALL-UNNAMED",
+        "--add-opens=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+    )
+    systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
 }

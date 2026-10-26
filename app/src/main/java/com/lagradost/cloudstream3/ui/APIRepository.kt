@@ -17,6 +17,8 @@ import com.lagradost.cloudstream3.mvvm.Resource
 import com.lagradost.cloudstream3.mvvm.logError
 import com.lagradost.cloudstream3.mvvm.safeApiCall
 import com.lagradost.cloudstream3.newSearchResponseList
+import com.lagradost.cloudstream3.ui.search.aggregation.SearchMediaMetadataCache
+import com.lagradost.cloudstream4.domain.media.ProviderKey
 import com.lagradost.cloudstream3.utils.Coroutines.atomicListOf
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import kotlinx.coroutines.CoroutineScope
@@ -101,8 +103,11 @@ class APIRepository(val api: MainAPI) {
                     found
                 }
 
-                if (cached != null) return@withTimeout cached
+                if (cached != null) return@withTimeout cached.also {
+                    runCatching { SearchMediaMetadataCache.remember(api, url, it, ProviderKey(name, mainUrl)) }.onFailure(::logError)
+                }
                 api.load(fixedUrl)?.also { response ->
+                    runCatching { SearchMediaMetadataCache.remember(api, url, response, ProviderKey(name, mainUrl)) }.onFailure(::logError)
                     // Remove all blank tags as early as possible
                     response.tags = response.tags?.filter { it.isNotBlank() }
                     val add = SavedLoadResponse(unixTime, response, lookingForHash)

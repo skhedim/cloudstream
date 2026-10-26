@@ -48,6 +48,18 @@
     </PreferenceCategory>
 
     <PreferenceCategory android:title="@string/pref_category_ui_features">
+        <SwitchPreference
+            android:icon="@drawable/home_icon_filled_24"
+            android:summary="@string/aggregate_home_des"
+            android:title="@string/aggregate_home"
+            app:defaultValue="true"
+            app:key="aggregate_home" />
+        <SwitchPreference
+            android:icon="@drawable/search_icon"
+            android:summary="@string/aggregate_search_des"
+            android:title="@string/aggregate_search"
+            app:defaultValue="true"
+            app:key="aggregate_search" />
         <Preference
             android:icon="@drawable/ic_baseline_tv_24"
             android:key="@string/poster_ui_key"

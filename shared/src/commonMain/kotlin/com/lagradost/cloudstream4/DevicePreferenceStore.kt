@@ -75,6 +75,10 @@ class UIPreferences(preferences: PreferenceStore) {
     val advancedSearch = preferences.getBoolean(
         "advanced_search", true
     )
+    val aggregateHome = preferences.getBoolean("aggregate_home", true)
+    val aggregateSearch = preferences.getBoolean(
+        "aggregate_search", true
+    )
     val searchSuggestions = preferences.getBoolean(
         "search_suggestions_enabled", true
     )

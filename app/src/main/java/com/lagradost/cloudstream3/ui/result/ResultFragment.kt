@@ -23,6 +23,10 @@ import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
 import com.lagradost.cloudstream3.utils.UiImage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream3.ui.result.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
+import com.lagradost.cloudstream3.utils.AppUtils.toJsonLiteral
 
 const val START_ACTION_RESUME_LATEST = 1
 const val START_ACTION_LOAD_EP = 2
@@ -62,6 +66,8 @@ data class ResultEpisode(
     @SerialName("airDate") val airDate: Long? = null,
     @SerialName("runTime") val runTime: Int? = null,
     @SerialName("seasonData") val seasonData: SeasonData? = null,
+    @SerialName("sourceBindings") val sourceBindings: List<EpisodeSourceBinding> = emptyList(),
+    @SerialName("legacyIds") val legacyIds: List<Int> = emptyList(),
 )
 
 fun ResultEpisode.getRealPosition(): Long {
@@ -143,11 +149,16 @@ object ResultFragment {
     private const val START_ACTION_BUNDLE = "startAction"
     private const val START_VALUE_BUNDLE = "startValue"
     private const val RESTART_BUNDLE = "restart"
+    private const val CANONICAL_BUNDLE = "canonicalDetailV1"
 
     fun newInstance(
         card: SearchResponse, startAction: Int = 0, startValue: Int? = null
     ): Bundle {
         return Bundle().apply {
+            if (card is AggregatedSearchResponse &&
+                com.lagradost.cloudstream4.domain.media.MediaAggregator.family(card.media.kind) != null) {
+                putString(CANONICAL_BUNDLE, CanonicalDetailRequest.from(card).toJsonLiteral())
+            }
             putString(URL_BUNDLE, card.url)
             putString(API_NAME_BUNDLE, card.apiName)
             putString(NAME_BUNDLE, card.name)
@@ -238,6 +249,7 @@ object ResultFragment {
         val start: AutoResume?,
         val playerAction: Int,
         val restart: Boolean,
+        val canonicalRequest: String? = null,
     )
 
     fun bindLogo(
@@ -312,7 +324,8 @@ object ResultFragment {
                 season = resumeSeason
             )
         }
-        return StoredData(url, apiName, name, showFillers, dubStatus, start, playerAction, restart)
+        return StoredData(url, apiName, name, showFillers, dubStatus, start, playerAction, restart,
+            arguments?.getString(CANONICAL_BUNDLE))
     }
 
     /*private fun reloadViewModel(forceReload: Boolean) {

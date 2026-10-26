@@ -180,46 +180,51 @@ object AndroidRepositoryManager : RepositoryManager {
          *
          * Because if the file digest is correct, then why do we need to do a network connection?
          * */
-        if (isFileDigest(file, source.digest)) {
+        val alreadyDownloaded = isFileDigest(file, source.digest)
+        if (alreadyDownloaded && PluginManager.plugins.containsKey(file.absolutePath)) {
             return@withContext file.absolutePath
         }
 
-        val tempFile = File.createTempFile(file.name, ".tmp", context.cacheDir)
+        if (!alreadyDownloaded) {
+            val tempFile = File.createTempFile(file.name, ".tmp", context.cacheDir)
 
-        tempFile.outputStream().use { writeStream ->
-            app.get(convertRawGitUrl(source.pluginUrl)).body.use { body ->
-                val readStream = body.byteStream()
-                ApkUpdater.transfer(
-                    writeStream = writeStream,
-                    readStream = readStream,
-                    length = source.size,
-                    downloadProgress = downloadProgress,
-                    digest = source.digest
+            tempFile.outputStream().use { writeStream ->
+                app.get(convertRawGitUrl(source.pluginUrl)).body.use { body ->
+                    val readStream = body.byteStream()
+                    ApkUpdater.transfer(
+                        writeStream = writeStream,
+                        readStream = readStream,
+                        length = source.size,
+                        downloadProgress = downloadProgress,
+                        digest = source.digest
+                    )
+                }
+            }
+
+            // Always load the plugin
+            unloadPlugin(file.absolutePath)
+
+            file.delete() // delete if we somehow already have this downloaded?
+            file.parentFile?.mkdirs() // make the directories as Files.move needs this to work
+
+            try {
+                Files.move(
+                    tempFile.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(
+                    tempFile.toPath(),
+                    file.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING
                 )
             }
         }
 
-        // Always load the plugin
-        unloadPlugin(file.absolutePath)
-
-        file.delete() // delete if we somehow already have this downloaded?
-        file.parentFile?.mkdirs() // make the directories as Files.move needs this to work
-
-        try {
-            Files.move(
-                tempFile.toPath(),
-                file.toPath(),
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE
-            )
-        } catch (_: AtomicMoveNotSupportedException) {
-            Files.move(
-                tempFile.toPath(),
-                file.toPath(),
-                StandardCopyOption.REPLACE_EXISTING
-            )
-        }
-
+        // Explicit manual installs use the native loader, independently of the wizard selection.
+        com.lagradost.cloudstream3.ui.catalog.CatalogPreferences.releaseManagedArchive(context, file.absolutePath)
         val result = PluginManager.loadPlugin(
             context = context,
             file = file,

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="aggregate_home">Common discovery home</string>
+    <string name="aggregate_home_des">Combine recent additions across your enabled extensions.</string>
+    <string name="home_news">Discover</string>
+    <string name="home_recent_additions">Latest additions</string>
+    <string name="home_for_you">For you · based on your history</string>
+    <string name="home_for_you_movies">Films for you</string>
+    <string name="home_for_you_series">Series for you</string>
+    <string name="home_movies">Films to discover</string>
+    <string name="home_series">Series to discover</string>
+    <string name="home_anime">Anime and animation</string>
+    <string name="home_documentaries">Documentaries</string>
+    <string name="home_action">Action</string>
+    <string name="home_comedy">Comedy</string>
+    <string name="home_thriller">Thrillers</string>
+    <string name="home_scifi">Science fiction</string>
+    <string name="home_discover">More to discover</string>
+    <string name="home_loading_news">Finding new additions…</string>
+    <string name="home_updating_news">New additions · updating…</string>
+    <string name="home_no_content">No titles available. Check your extensions and connection, then refresh.</string>
+    <string name="home_partial_news">%1$d titles to discover · some additions are unavailable</string>
+    <string name="home_ready_news">%1$d titles to discover</string>
+    <string name="home_refresh_news">Refresh new additions</string>
+    <string name="home_show_all">See more</string>
+    <string name="home_show_all_named">See more: %1$s</string>
+    <string name="home_load_more">Load more</string>
+    <string name="home_load_more_retry">Loading failed · retry</string>
+    <string name="home_loading_more">Loading…</string>
+    <string name="home_expanded_count">%1$d titles</string>
+    <string name="home_no_new_items">No new titles on these pages · continue</string>
+    <string name="youtube_trailer">Trailer</string>
+</resources>
