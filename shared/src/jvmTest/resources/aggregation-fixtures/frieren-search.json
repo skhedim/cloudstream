@@ -1,0 +1,400 @@
+{
+ "query": "Frieren",
+ "capturedOn": "2026-10-26",
+ "device": "SHIELD Android TV, French extensions",
+ "note": "Sanitized search candidates after metadata enrichment: no URLs, payloads or headers.",
+ "candidates": [
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:j8K7vgF3Kp5T6EwJvez9B4it6CB.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:209867",
+    "Imdb:tt22248376"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:j8K7vgF3Kp5T6EwJvez9B4it6CB.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:209867",
+    "Imdb:tt22248376"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Young Ones Are Even Cold in the Summer",
+   "year": 1978,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Frieren",
+   "year": 1996,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt22248376",
+    "TmdbTv:209867"
+   ]
+  },
+  {
+   "provider": "Coflix",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:j8K7vgF3Kp5T6EwJvez9B4it6CB.jpg"
+   ],
+   "externalIds": [
+    "Imdb:tt22248376",
+    "TmdbTv:209867"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:j8K7vgF3Kp5T6EwJvez9B4it6CB.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:209867",
+    "Imdb:tt22248376"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Kleine frieren auch im Sommer",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Kleine frieren auch im Sommer",
+   "year": 1978,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0343937",
+    "TmdbMovie:360097"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Frieren: Beyond Journey's End",
+   "year": 2023,
+   "kind": "Anime",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "AniList:154587",
+    "MyAnimeList:52991"
+   ]
+  },
+  {
+   "provider": "CineStream",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt22248376",
+    "TmdbTv:209867"
+   ]
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Kleine frieren auch im Sommer",
+   "year": 1978,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0343937",
+    "TmdbMovie:360097"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "Kleine frieren auch im Sommer",
+   "year": 1978,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0343937",
+    "TmdbMovie:360097"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Frieren: Beyond Journey's End S2",
+   "year": null,
+   "kind": "Movie",
+   "editions": [
+    "season:2"
+   ],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Frieren",
+   "year": 2023,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt22248376",
+    "AniList:154587",
+    "MyAnimeList:52991",
+    "TmdbTv:209867"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Frieren: Beyond Journey's End - Golden Land Arc",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Kleine frieren auch im Sommer",
+   "year": 1978,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0343937",
+    "TmdbMovie:360097"
+   ]
+  },
+  {
+   "provider": "CineStream",
+   "title": "Frieren: Beyond Journey's End Original Mini-Anime - Magic of ??",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Frieren: Beyond Journey's End Season 2",
+   "year": null,
+   "kind": "Movie",
+   "editions": [
+    "season:2"
+   ],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "The Suitor",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Band of Brothers",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Sousou no Frieren: Marumaru no Mahou",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Let's Get Married",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Labyrinth of Peace",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "White Chicks",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Pros and Cons",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "What Women Want",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "One Tree Hill",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Kylmä",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "War & Peace",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Kundschafter des Friedens",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Daisy Jones & The Six",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Kundschafter des Friedens 2",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "A Friend of the Family",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Snipers Valley",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Brothers",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Silent Friend",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Step Brothers",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  }
+ ]
+}

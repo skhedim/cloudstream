@@ -90,4 +90,20 @@ class MatchingToleranceTest {
             ids = setOf(ExternalMediaId(ExternalIdNamespace.Imdb, "tt1"))), listOf(ref))
         assertTrue(tmdb !in other.externalIds)
     }
+
+    @Test fun aCandidateKnowingBothIdsBridgesGroupsOnlyWithoutContradictions() {
+        val tmdb = ExternalMediaId(ExternalIdNamespace.TmdbTv, "209867")
+        val anilist = ExternalMediaId(ExternalIdNamespace.AniList, "154587")
+        val french = candidate("A", "Frieren", 2023, ids = setOf(tmdb))
+        val english = candidate("B", "Frieren: Beyond Journey's End", 2023, MediaKind.Anime, setOf(anilist))
+        val both = candidate("C", "Sousou no Frieren", 2023, MediaKind.Anime, setOf(tmdb, anilist))
+        assertEquals(1, MediaAggregator().aggregate(listOf(french, english, both)).size)
+        // A conflicting ID in one of the groups keeps them apart.
+        val conflicting = candidate("D", "Frieren: Beyond Journey's End", 2023, MediaKind.Anime,
+            setOf(anilist, ExternalMediaId(ExternalIdNamespace.TmdbTv, "1")))
+        assertTrue(MediaAggregator().aggregate(listOf(french, conflicting, both)).size > 1)
+        // Different years beyond the tolerance keep them apart.
+        val remake = candidate("E", "Frieren: Beyond Journey's End", 2018, MediaKind.Anime, setOf(anilist))
+        assertTrue(MediaAggregator().aggregate(listOf(french, remake, both)).size > 1)
+    }
 }

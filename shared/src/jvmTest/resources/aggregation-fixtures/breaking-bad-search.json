@@ -1,0 +1,1111 @@
+{
+ "query": "Breaking Bad",
+ "capturedOn": "2026-10-26",
+ "device": "SHIELD Android TV, French extensions",
+ "note": "Sanitized search candidates after metadata enrichment: no URLs, payloads or headers.",
+ "candidates": [
+  {
+   "provider": "02- 🔥 FsMirrorLol Mirror🔥",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:icR10XfPhgszVOKhBXAIJQXpCmV.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:hVVxgGZFR3JaXmkstnG1IR9Qbt6.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:hVVxgGZFR3JaXmkstnG1IR9Qbt6.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "CineStream",
+   "title": "El Camino",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0903747",
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "Flemmix/Wiflix",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Frembed",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:hVVxgGZFR3JaXmkstnG1IR9Qbt6.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:hVVxgGZFR3JaXmkstnG1IR9Qbt6.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "Xalaflix",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:3pnlJjsGtrUp3cPEOLzkR0sPQAK.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "02- 🔥 FsMirrorLol Mirror🔥",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:3pnlJjsGtrUp3cPEOLzkR0sPQAK.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vGmDs7qGOgST23o9hKwiyGd6WeW.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vGmDs7qGOgST23o9hKwiyGd6WeW.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "CineStream",
+   "title": "Breaking Bad",
+   "year": 2008,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0903747",
+    "TmdbTv:1396"
+   ]
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt9243946",
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "Flemmix/Wiflix",
+   "title": "Breaking Bad : Le Film",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Frembed",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vGmDs7qGOgST23o9hKwiyGd6WeW.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vGmDs7qGOgST23o9hKwiyGd6WeW.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "Xalaflix",
+   "title": "Breaking Bad",
+   "year": null,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:tP2wgZfzkZxL18jImD2YXqEUXQA.jpg"
+   ],
+   "externalIds": []
+  },
+  {
+   "provider": "02- 🔥 FsMirrorLol Mirror🔥",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vGmDs7qGOgST23o9hKwiyGd6WeW.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "El Camino : Un film \"Breaking Bad\" : En coulisse",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2BcQ0ZScTBj3sihSQkV1SXYHqdU.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:934809"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "El Camino : Un film \"Breaking Bad\" : En coulisse",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2BcQ0ZScTBj3sihSQkV1SXYHqdU.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:934809"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "El Camino : Un film \"Breaking Bad\"",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "TmdbMovie:559969"
+   ]
+  },
+  {
+   "provider": "CineStream",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": 1977,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt0075718",
+    "TmdbMovie:19050"
+   ]
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking Bad Fortune Teller",
+   "year": 2016,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Frembed",
+   "title": "Les Bad Guys cassent la baraque",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:wGqA40va0r9OY3GJWPVl45PZPY5.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:302540"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "El Camino : Un film \"Breaking Bad\" : En coulisse",
+   "year": 2019,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2BcQ0ZScTBj3sihSQkV1SXYHqdU.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:934809"
+   ]
+  },
+  {
+   "provider": "02- 🔥 FsMirrorLol Mirror🔥",
+   "title": "Les Bad Guys cassent la baraque",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [
+    "season:1"
+   ],
+   "artwork": [
+    "tmdb-artwork:59zdu1JblGdEGSFueJEy2nohaeE.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:302540"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Breaking Bad Wolf",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bKiGcZ13r8nkYiuKUBakbzAjmwn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:635602"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Breaking Bad Wolf",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bKiGcZ13r8nkYiuKUBakbzAjmwn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:635602"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Breaking Bad Fortune Teller",
+   "year": 2016,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Breaking Bad: Original Minisodes",
+   "year": 2009,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt2387761",
+    "TmdbTv:337563"
+   ]
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "ISMO – Breaking Bad English",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": [
+    "Imdb:tt33883401"
+   ]
+  },
+  {
+   "provider": "Movix",
+   "title": "Breaking Bad Wolf",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bKiGcZ13r8nkYiuKUBakbzAjmwn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:635602"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Breaking Bad: Original Minisodes",
+   "year": 2009,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:dMXwKX2u98yuAXrslSRmteztMoE.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:337563"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Breaking Bad: Original Minisodes",
+   "year": 2009,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:dMXwKX2u98yuAXrslSRmteztMoE.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:337563"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Ismo - maailman hauskin ulkopuolinen",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking Bad Wolf",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Breaking Bad: Original Minisodes",
+   "year": 2009,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:dMXwKX2u98yuAXrslSRmteztMoE.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:337563"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Snow Globe: A Breaking Bad Short",
+   "year": 2020,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2KOPxe7fy7sizottwvMk0s7YxL1.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:675519"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Snow Globe: A Breaking Bad Short",
+   "year": 2020,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2KOPxe7fy7sizottwvMk0s7YxL1.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:675519"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Metástasis",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "The Bad Guys: Breaking In",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Daniel Brühl: Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Snow Globe: A Breaking Bad Short",
+   "year": 2020,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:2KOPxe7fy7sizottwvMk0s7YxL1.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:675519"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": 2013,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:uI6dU5hbhskkgA7TQL0qq74ALjR.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:239459"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": 2013,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:uI6dU5hbhskkgA7TQL0qq74ALjR.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:239459"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "The Road to El Camino: Behind the Scenes of El Camino: A Breaking Bad Movie",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking Bad: Original Minisodes",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": 2013,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:uI6dU5hbhskkgA7TQL0qq74ALjR.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:239459"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": 1977,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:aGShIKIKWDCPVGDfeEXwTfmE4mi.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:19050"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": 1977,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:aGShIKIKWDCPVGDfeEXwTfmE4mi.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:19050"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "The Bad Guys: The Series",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Untitled Korean remake of Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Snow Globe: A Breaking Bad Short",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": 1977,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:aGShIKIKWDCPVGDfeEXwTfmE4mi.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:19050"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Breaking the Deal with My Hockey Bad Boy",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:cjvq9nh9oVMC2ike0s6L9f72pZF.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:326283"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Breaking the Deal with My Hockey Bad Boy",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:cjvq9nh9oVMC2ike0s6L9f72pZF.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:326283"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "ISMO – Breaking Bad English",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Breaking Bad Movie Deal Gone Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "No Half Measures: Creating the Final Season of Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Breaking the Deal with My Hockey Bad Boy",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:cjvq9nh9oVMC2ike0s6L9f72pZF.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:326283"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:pgZoTGXmkQXoO7F8wgBmlyy6zxy.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:pgZoTGXmkQXoO7F8wgBmlyy6zxy.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Snow Globe: A Breaking Bad Short",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Breaking the Deal with My Hockey Bad Boy",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "L'Envers du sport : Raygun, Breaking Badly",
+   "year": 2026,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:pgZoTGXmkQXoO7F8wgBmlyy6zxy.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1739202"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Breaking in Badly",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:AhGKTOt4OGVGEX5vkMwl3QvwVJn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1399762"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Breaking in Badly",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:AhGKTOt4OGVGEX5vkMwl3QvwVJn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1399762"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Daniel Brühl: Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineStream",
+   "title": "Fixing Breaking Bad",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking the Deal with My Hockey Bad Boy",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Breaking in Badly",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:AhGKTOt4OGVGEX5vkMwl3QvwVJn.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1399762"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "绝命卦师",
+   "year": 2016,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:n8dKkbPkdEPFCFmjNvrUl1gUAYr.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:232533"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "绝命卦师",
+   "year": 2016,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:n8dKkbPkdEPFCFmjNvrUl1gUAYr.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:232533"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Breaking in Badly",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "The Road to El Camino: Behind the Scenes of El Camino: A Breaking Bad Movie",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "绝命卦师",
+   "year": 2016,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:n8dKkbPkdEPFCFmjNvrUl1gUAYr.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:232533"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "ISMO - Maailman hauskin ulkopuolinen",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bd6X48OoqcjDNJsAi9ntws3i2y9.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1309626"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "ISMO - Maailman hauskin ulkopuolinen",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bd6X48OoqcjDNJsAi9ntws3i2y9.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1309626"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "The Bad News Bears in Breaking Training",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Untold Raygun: Breaking Badly",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "ISMO - Maailman hauskin ulkopuolinen",
+   "year": 2024,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:bd6X48OoqcjDNJsAi9ntws3i2y9.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1309626"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Les Bad Guys cassent la baraque",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:wGqA40va0r9OY3GJWPVl45PZPY5.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:302540"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Les Bad Guys cassent la baraque",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:wGqA40va0r9OY3GJWPVl45PZPY5.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:302540"
+   ]
+  },
+  {
+   "provider": "CineSimkl",
+   "title": "Breaking Bad Wolf",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "Breaking in Badly",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Les Bad Guys cassent la baraque",
+   "year": 2025,
+   "kind": "Series",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:wGqA40va0r9OY3GJWPVl45PZPY5.jpg"
+   ],
+   "externalIds": [
+    "TmdbTv:302540"
+   ]
+  },
+  {
+   "provider": "05- 🍿⭐ Frembed FR 🎬",
+   "title": "Daniel Brühl : goodbye l'éternel gentil !",
+   "year": 2023,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vZgEcNTWkcxBG0VIjHZdXIivdnP.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1089398"
+   ]
+  },
+  {
+   "provider": "AfterDark",
+   "title": "Daniel Brühl : goodbye l'éternel gentil !",
+   "year": 2023,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vZgEcNTWkcxBG0VIjHZdXIivdnP.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1089398"
+   ]
+  },
+  {
+   "provider": "CineTmdb",
+   "title": "The Bad Guys: The Series",
+   "year": null,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [],
+   "externalIds": []
+  },
+  {
+   "provider": "Movix",
+   "title": "Daniel Brühl : goodbye l'éternel gentil !",
+   "year": 2023,
+   "kind": "Movie",
+   "editions": [],
+   "artwork": [
+    "tmdb-artwork:vZgEcNTWkcxBG0VIjHZdXIivdnP.jpg"
+   ],
+   "externalIds": [
+    "TmdbMovie:1089398"
+   ]
+  }
+ ]
+}

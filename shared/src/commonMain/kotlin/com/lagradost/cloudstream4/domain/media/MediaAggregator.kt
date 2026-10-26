@@ -31,7 +31,9 @@ class MediaAggregator {
             }
             // A trusted ID wins over title evidence, and an exact year over a neighbouring one.
             // Never choose arbitrarily between works.
-            val match = matches.filter { it.second == MatchReason.ExternalId }
+            val idMatches = matches.filter { it.second == MatchReason.ExternalId }
+            val bridged = if (idMatches.size > 1) bridge(idMatches.map { it.first }, candidate, groups, byId, byTitle) else null
+            val match = bridged?.let { it to MatchReason.ExternalId } ?: idMatches
                 .ifEmpty { matches.filter { it.second == MatchReason.TitleYearType } }
                 .ifEmpty { matches }.singleOrNull()
             val group = match?.first ?: Group().also(groups::add)
@@ -59,6 +61,35 @@ class MediaAggregator {
                 members.flatMap { it.alternateTitles + it.title }.filter { it.isNotBlank() }.toSet(),
             )
         }
+    }
+
+    /**
+     * A candidate whose own IDs are shared with several groups proves they are one work (one
+     * provider knows the TMDB and the AniList ID of a show, others only one of them). Merge them
+     * only if nothing contradicts it: no conflicting ID in any namespace, one media family, years
+     * within the tolerance and identical editions. Title evidence never bridges groups.
+     */
+    private fun bridge(
+        candidates: List<Group>, candidate: MediaCandidate, groups: MutableList<Group>,
+        byId: MutableMap<ExternalMediaId, MutableSet<Group>>, byTitle: MutableMap<TitleKey, MutableSet<Group>>,
+    ): Group? {
+        val members = candidates.flatMap { group -> group.members.map { it.second } } + candidate
+        val ids = members.flatMap { it.externalIds }.groupBy { it.namespace }
+        if (ExternalIdNamespace.TmdbMovie in ids && ExternalIdNamespace.TmdbTv in ids) return null
+        if (ids.values.any { sameNamespace -> sameNamespace.map { it.value }.distinct().size > 1 }) return null
+        if (members.map { family(it.kind) }.distinct().size != 1) return null
+        if (members.map { it.edition }.distinct().size != 1) return null
+        val years = members.mapNotNull { it.year }
+        if (years.isNotEmpty() && years.max() - years.min() > YEAR_TOLERANCE) return null
+        val target = candidates.minBy { group -> group.members.minOf { it.first } }
+        candidates.filter { it !== target }.forEach { merged ->
+            target.members.addAll(merged.members)
+            target.titles.addAll(merged.titles)
+            target.reasons.addAll(merged.reasons)
+            groups.remove(merged)
+            (byId.values + byTitle.values).forEach { set -> if (set.remove(merged)) set.add(target) }
+        }
+        return target
     }
 
     private fun reason(group: Group, candidate: MediaCandidate, titles: Set<String>): MatchReason? {
