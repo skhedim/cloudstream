@@ -31,8 +31,9 @@ import kotlinx.coroutines.launch
 import org.jetbrains.annotations.Contract
 import java.util.concurrent.ConcurrentHashMap
 
-import com.lagradost.cloudstream3.ui.player.aggregation.PlaybackSources
-import com.lagradost.cloudstream3.ui.player.aggregation.SourceVersion
+import com.lagradost.cloudstream4.aggregation.PlaybackSources
+import com.lagradost.cloudstream4.aggregation.SourceRanking
+import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.getKey
 import com.lagradost.cloudstream3.CloudStreamApp.Companion.setKey
 import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
@@ -55,6 +56,10 @@ data class DisplayLink(
     val priority: Int
 )
 
+/** Auto ranking score of a canonical link: language first unless the quality gap is very large. */
+fun canonicalScore(link: VideoLink?): Double =
+    SourceRanking.score(PlaybackSources.version(link?.first), PlaybackSources.quality(link?.first))
+
 /** Immutable state of all current links relevant to displaying the video */
 // @MustUseReturnValues
 // @Immutable
@@ -68,6 +73,8 @@ data class VideoState(
     val instance: Int,
     val canonical: Boolean = false,
     val sourceVersion: SourceVersion = SourceVersion.Auto,
+    /** Canonical acquisition knows enough to start; it may still be loading better sources. */
+    val canonicalReady: Boolean = false,
 ) {
     /**
      * This acts as a local cache for sorted links that are not copied over by the copy constructor.
@@ -121,13 +128,14 @@ data class VideoState(
             if (canonical && requested != SourceVersion.Auto && PlaybackSources.version(link.first) != requested)
                 base.copy(shouldUseLink = false) else base
         }
-        return (if (canonical) display.sortedWith(
-            compareByDescending<DisplayLink> { PlaybackSources.versionRank(PlaybackSources.version(it.link.first)) }
-                .thenByDescending { it.priority }
-                .thenByDescending { PlaybackSources.quality(it.link.first) }
-                .thenBy { PlaybackSources.metadata(it.link.first)?.ordinal ?: Int.MAX_VALUE }
-                .thenBy { it.link.first?.name.orEmpty() }.thenBy { it.link.first?.url.orEmpty() }
-        ) else display.sortedByDescending { it.priority })
+        return (if (canonical) display.sortedWith(SourceRanking.comparator(
+            score = { canonicalScore(it.link) },
+            profilePriority = { it.priority },
+            quality = { PlaybackSources.quality(it.link.first) },
+            ordinal = { PlaybackSources.metadata(it.link.first)?.ordinal ?: Int.MAX_VALUE },
+            name = { it.link.first?.name.orEmpty() },
+            url = { it.link.first?.url.orEmpty() },
+        )) else display.sortedByDescending { it.priority })
             .also { sortedLinks[qualityProfile] = it }
     }
 
@@ -429,6 +437,17 @@ class PlayerGeneratorViewModel : ViewModel() {
                 },
                 instance = instance + 1
             )
+        }
+
+        val instanceOfLoad = state.instance
+        (generator as? RepoLinkGenerator)?.apply {
+            canonicalPreference = preferredVersion
+            onCanonicalReady = { offset ->
+                if (offset == index && state.instance == instanceOfLoad) {
+                    modifyState { if (instance == instanceOfLoad) copy(canonicalReady = true) else this }
+                    _currentLinks.postValue(VideoLive(state.links, state.instance))
+                }
+            }
         }
 
         currentJob = viewModelScope.launchSafe {

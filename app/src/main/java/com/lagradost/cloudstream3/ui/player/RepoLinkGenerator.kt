@@ -12,7 +12,8 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
-import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceLoader
+import com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader
+import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -36,6 +37,12 @@ class RepoLinkGenerator(
             hashMapOf()
     }
 
+    /** Version chosen in the player; canonical acquisition waits for it when it exists. */
+    var canonicalPreference: SourceVersion = SourceVersion.Auto
+
+    /** Called with the episode offset when enough canonical sources are known to start playback. */
+    var onCanonicalReady: ((Int) -> Unit)? = null
+
     override val hasCache = true
     override val canSkipLoading = true
     override fun getId(index: Int): Int? = videos.getOrNull(index)?.id
@@ -55,11 +62,20 @@ class RepoLinkGenerator(
     ): Boolean {
         val current = videos.getOrNull(offset) ?: return false
         if (current.sourceBindings.isNotEmpty()) {
-            val sources = CanonicalSourceLoader().load(current.sourceBindings, clearCache, isCasting)
+            // Sources are published as they arrive; the player starts on onCanonicalReady and may
+            // upgrade once acquisition has finished.
+            val subtitleNames = ConcurrentHashMap<String, AtomicInteger>()
+            val sources = CanonicalSourceLoader().load(current.sourceBindings, clearCache, isCasting,
+                preference = canonicalPreference,
+                onSource = { source -> if (source.link.type in sourceTypes) callback(source.link to null) },
+                onSubtitle = { file ->
+                    val data = PlayerSubtitleHelper.getSubtitleData(file)
+                    val count = subtitleNames.getOrPut(data.originalName) { AtomicInteger(0) }.incrementAndGet()
+                    subtitleCallback(data.copy(nameSuffix = if (count == 1) "" else count.toString()))
+                },
+                onReady = { onCanonicalReady?.invoke(offset) })
             currentCoroutineContext().ensureActive()
             if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.write(current, sources)
-            sources.subtitles.forEach(subtitleCallback)
-            sources.links.filter { it.type in sourceTypes }.forEach { callback(it to null) }
             return sources.links.any { it.type in sourceTypes }
         }
         val binding = current.sourceBindings.firstOrNull()

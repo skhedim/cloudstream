@@ -1,5 +1,7 @@
 package com.lagradost.cloudstream3.ui.player.aggregation
 
+import com.lagradost.cloudstream4.aggregation.PlaybackSources
+import com.lagradost.cloudstream4.aggregation.CanonicalSources
 import com.lagradost.cloudstream3.CloudStreamApp
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import org.json.JSONObject
@@ -12,7 +14,8 @@ internal object CanonicalSourceDiagnostics {
         val data = mapOf("title" to episode.headerName, "season" to episode.season,
             "episode" to episode.episode, "episodeId" to episode.id,
             "bindings" to episode.sourceBindings.size, "links" to sources.links.size,
-            "subtitles" to sources.subtitles.size,
+            "subtitles" to sources.subtitles.size, "readyAfterMs" to sources.readyAfterMs,
+            "probed" to sources.sources.count { it.metadata.probed },
             "versions" to sources.links.groupingBy { PlaybackSources.version(it).name }.eachCount(),
             "qualities" to sources.links.groupingBy { PlaybackSources.quality(it).toString() }.eachCount(),
             "outcomes" to sources.outcomes.map { mapOf("ordinal" to it.ordinal, "provider" to it.provider,

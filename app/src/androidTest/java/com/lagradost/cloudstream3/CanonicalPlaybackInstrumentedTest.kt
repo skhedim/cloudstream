@@ -1,5 +1,7 @@
 package com.lagradost.cloudstream3
 
+import com.lagradost.cloudstream4.aggregation.SourceVersion
+import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.result.aggregation.from
 import android.app.Dialog
 import android.graphics.Bitmap

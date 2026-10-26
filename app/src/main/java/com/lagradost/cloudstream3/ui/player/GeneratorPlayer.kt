@@ -79,8 +79,9 @@ import com.lagradost.cloudstream3.ui.download.DownloadButtonSetup
 import com.lagradost.cloudstream3.ui.player.CS3IPlayer.Companion.preferredAudioTrackLanguage
 import com.lagradost.cloudstream3.ui.player.CustomDecoder.Companion.updateForcedEncoding
 import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper.Companion.toSubtitleMimeType
-import com.lagradost.cloudstream3.ui.player.aggregation.SourceVersion
-import com.lagradost.cloudstream3.ui.player.aggregation.PlaybackSources
+import com.lagradost.cloudstream4.aggregation.SourceVersion
+import com.lagradost.cloudstream4.aggregation.PlaybackPolicy
+import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
 import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
 import com.lagradost.cloudstream3.ui.player.source_priority.QualityDataHelper
@@ -187,6 +188,10 @@ class GeneratorPlayer : FullScreenPlayer() {
     private val nextMeta: Any? get() = viewModel.state.generatorState?.nextMeta
 
     private var isPlayerActive: AtomicBoolean = AtomicBoolean(false)
+
+    /** The user picked a source or version for this episode: never replace it automatically. */
+    private var userChoseSource = false
+    private val canonicalPolicy = PlaybackPolicy()
     private var isNextEpisode: Boolean = false // this is used to reset the watch time
 
     private var preferredAutoSelectSubtitles: String? = null // null means do nothing, "" means none
@@ -1399,6 +1404,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                     }
                     if (init) {
                         filteredLinks.getOrNull(sourceIndex)?.let {
+                            userChoseSource = true
                             loadLink(it.link, true)
                         }
                     }
@@ -1592,6 +1598,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                             // Dismiss restores the original play/pause state; sameEpisode preserves position.
                             trackDialog.dismissSafe(activity)
                             this.selectTrackDialog = null
+                            userChoseSource = true
                             loadLink(best, sameEpisode = true, autoPlay = isPlaying)
                             return@setOnClickListener
                         }
@@ -1662,6 +1669,20 @@ class GeneratorPlayer : FullScreenPlayer() {
         }
 
         activity?.popCurrentPage()
+    }
+
+    /**
+     * Canonical playback starts early; once every provider has answered, switch silently to a
+     * clearly better source (same position, same play/pause state) unless the user chose one.
+     */
+    private fun upgradeCanonicalSource() {
+        if (!viewModel.state.canonical || userChoseSource) return
+        val current = currentSelectedLink ?: return
+        val best = viewModel.state.sortLinks(currentQualityProfile).firstOrNull { it.shouldUseLink }?.link ?: return
+        if (best == current) return
+        if (!canonicalPolicy.shouldUpgrade(canonicalScore(current), canonicalScore(best))) return
+        Log.i(TAG, "Upgrading canonical source to ${best.first?.name}")
+        loadLink(best, sameEpisode = true, autoPlay = player.getIsPlaying())
     }
 
     private fun startPlayer() {
@@ -2396,6 +2417,7 @@ class GeneratorPlayer : FullScreenPlayer() {
 
             when (loading) {
                 is Resource.Loading -> {
+                    userChoseSource = false
                     releasePlayer()
                 }
 
@@ -2404,7 +2426,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                     //if (it.value != true) {
                     //    showToast(activity, R.string.unexpected_error, Toast.LENGTH_SHORT)
                     //}
-                    startPlayer()
+                    if (isPlayerActive.get()) upgradeCanonicalSource() else startPlayer()
                 }
 
                 is Resource.Failure -> {
@@ -2435,6 +2457,9 @@ class GeneratorPlayer : FullScreenPlayer() {
             }
 
             safe {
+                if (viewModel.state.canonical && viewModel.state.canonicalReady && !isPlayerActive.get()) {
+                    startPlayer()
+                }
                 if (!viewModel.state.canonical && !isPlayerActive.get() && viewModel.state.links.any { link ->
                         getLinkPriority(currentQualityProfile, link.first) >=
                                 QualityDataHelper.AUTO_SKIP_PRIORITY
