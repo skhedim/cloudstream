@@ -220,4 +220,34 @@ class AggregatedHomeTest {
         assertEquals("L’été & moi ? #1 2026 bande annonce officielle",intent.data!!.getQueryParameter("search_query"))
         assertEquals("Show official trailer",TrailerSearch.intent("Show",null,false).data!!.getQueryParameter("search_query"))
     }
+
+    @Test fun weeklyTrendsMakeATopTenAndATrendingShelfOfAvailableWorksOnly() {
+        val a = api()
+        val titles = (1..14).map { movie(a, "Film $it", 2026).apply { posterUrl = "https://image.tmdb.org/t/p/w500/p$it.jpg" } }
+        // Ranks come from TMDB IDs on the cards (here: canonical TMDB URLs are not used, so attach IDs via the trend map keys).
+        val withIds = titles.mapIndexed { i, film -> a.newMovieSearchResponse(film.name, "https://www.themoviedb.org/movie/${1000 + i}", fix = false) { year = 2026 } }
+        val trending = (0 until 14).associate {
+            com.lagradost.cloudstream4.domain.media.ExternalMediaId(com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbMovie,
+                "${1000 + 13 - it}") to it
+        } + (com.lagradost.cloudstream4.domain.media.ExternalMediaId(com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbMovie, "999999") to 0)
+        val rows = AggregatedHomeProjector().project(listOf(feed(a, HomePageList("Films", withIds))), trending = trending)
+        val top = rows.single { it.shelf == HomeShelf.Top10 }.cards
+        assertEquals(10, top.size)
+        assertEquals("Film 14", top.first().name)
+        val trend = rows.single { it.shelf == HomeShelf.Trending }.cards
+        assertEquals(4, trend.size)
+        assertTrue(trend.none { it in top })
+        assertEquals(HomeShelf.Top10, rows.first().shelf)
+    }
+
+    @Test fun cardsOnlyAvailableFromForeignCataloguesAreLeftOut() {
+        val french = api(); val foreign = api()
+        val rows = AggregatedHomeProjector().project(listOf(
+            feed(french, HomePageList("Films", listOf(movie(french, "Shared", 2025)))),
+            feed(foreign, HomePageList("Films", listOf(movie(foreign, "Shared", 2025), movie(foreign, "Foreign only", 2025))))),
+            native = setOf(ProviderKey(french.name, french.mainUrl)))
+        val films = rows.single { it.shelf == HomeShelf.Movies }.cards
+        assertEquals(listOf("Shared"), films.map { it.name })
+        assertEquals(2, films.single().media.bindings.size)
+    }
 }
