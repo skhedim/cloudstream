@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream4.domain.media.*
 import java.text.Normalizer
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchArtworkSignatures
+import com.lagradost.cloudstream4.aggregation.SearchArtworkSignatures
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -110,12 +110,12 @@ class AggregatedHomeProjector {
             if (bindings.isEmpty()) null else AggregatedSearchResponse(media.copy(bindings = bindings,
                 bindingEditions = media.bindingEditions.filterKeys { it in responses }), bindings.map { responses.getValue(it) })
         }.sortedBy { card -> card.media.bindings.minOf { order.getValue(it) } }
-        val unresolvedTitles = cards.groupBy { MediaAggregator.normalizeTitle(it.name) }
+        val unresolvedTitles = cards.groupBy { MediaAggregator.matchKey(it.name) }
             .filterValues { group -> group.size > 1 && group.mapNotNull { it.media.year }.distinct().size <= 1 }.keys
-        detailRequests = candidates.filter { MediaAggregator.normalizeTitle(it.title) in unresolvedTitles &&
+        detailRequests = candidates.filter { MediaAggregator.matchKey(it.title) in unresolvedTitles &&
                 (it.year == null || it.externalIds.isEmpty()) }
             .sortedBy { it.year != null }.map { it.binding }.distinct().take(6)
-        artworkRequests = candidates.filter { MediaAggregator.normalizeTitle(it.title) in unresolvedTitles }
+        artworkRequests = candidates.filter { MediaAggregator.matchKey(it.title) in unresolvedTitles }
             .flatMap { it.artworkIds }.distinct().filterNot { it in signatures }.take(12)
         val latest = mutableSetOf<ProviderBinding>()
         val genres = mutableMapOf<ProviderBinding, MutableSet<HomeShelf>>()

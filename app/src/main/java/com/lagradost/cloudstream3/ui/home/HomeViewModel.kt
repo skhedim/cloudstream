@@ -67,7 +67,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 import com.lagradost.cloudstream4.domain.media.ProviderBinding
 import java.util.EnumSet

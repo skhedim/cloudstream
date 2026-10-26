@@ -18,8 +18,8 @@ import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream4.aggregation.SearchMetadataEnricher
 import com.lagradost.cloudstream3.ui.search.aggregation.SearchAggregationDiagnostics
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchMetadataCatalog
-import com.lagradost.cloudstream3.ui.search.aggregation.SearchArtworkSignatures
+import com.lagradost.cloudstream4.aggregation.SearchMetadataCatalog
+import com.lagradost.cloudstream4.aggregation.SearchArtworkSignatures
 import com.lagradost.cloudstream4.domain.media.ArtworkSignature
 import com.lagradost.cloudstream4.domain.media.VisualArtworkPlanner
 import com.lagradost.cloudstream4.domain.media.MediaReference

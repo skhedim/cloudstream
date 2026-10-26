@@ -820,6 +820,7 @@
     <string name="search_retry_providers">Load more / retry missing results</string>
     <string name="search_voice_description">Voice search</string>
     <string name="canonical_unlocated_episodes">Episodes to identify</string>
+    <string name="canonical_absolute_episodes">Absolute numbering</string>
     <string name="canonical_partial_detail">Some details could not be loaded (%1$d/%2$d available).</string>
     <string name="canonical_detail_failed">Unable to load this title. Please try again.</string>
     <string name="canonical_unspecified_audio">Unspecified audio</string>

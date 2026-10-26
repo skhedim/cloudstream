@@ -6,6 +6,7 @@
     <string name="search_retry_providers">Charger la suite / réessayer les résultats manquants</string>
     <string name="search_voice_description">Recherche vocale</string>
     <string name="canonical_unlocated_episodes">Épisodes à identifier</string>
+    <string name="canonical_absolute_episodes">Numérotation absolue</string>
     <string name="canonical_partial_detail">Certaines données n’ont pas pu être chargées (%1$d/%2$d accès disponibles).</string>
     <string name="canonical_detail_failed">Impossible de charger cette œuvre. Réessayez.</string>
     <string name="canonical_unspecified_audio">Audio non précisé</string>

@@ -1,5 +1,9 @@
 package com.lagradost.cloudstream3
 
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
+import com.lagradost.cloudstream4.aggregation.DetailBinding
+import com.lagradost.cloudstream4.aggregation.LoadedDetail
 import android.app.Application
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.player.RepoLinkGenerator
@@ -40,17 +44,22 @@ class CanonicalDetailTest {
     private suspend fun series(api: MainAPI, episodes: List<Triple<Int?, Int?, String>>): LoadedDetail {
         val response = api.newTvSeriesLoadResponse("Provider title", "${api.mainUrl}/show", TvType.TvSeries,
             episodes.map { (s, n, payload) -> api.newEpisode(payload, initializer = { season = s; episode = n }, fix = false) })
-        return LoadedDetail(binding(api), response, APIRepository(api))
+        return LoadedDetail(binding(api), response, api)
     }
     private var previousContext: Any? = null
     @Before fun context() {
         val field = CloudStreamApp::class.java.getDeclaredField("_context").apply { isAccessible = true }
         previousContext = field.get(null)
         field.set(null, WeakReference(RuntimeEnvironment.getApplication()))
+        // Robolectric gives each test fresh preferences, as a reinstalled app would have.
+        com.lagradost.cloudstream4.aggregation.AggregationPlatform.store =
+            com.lagradost.cloudstream3.ui.search.aggregation.AndroidKeyValueStore
     }
     @After fun restore() {
         CloudStreamApp::class.java.getDeclaredField("_context").apply { isAccessible = true }
             .set(null, previousContext)
+        com.lagradost.cloudstream4.aggregation.AggregationPlatform.store =
+            com.lagradost.cloudstream4.aggregation.InMemoryKeyValueStore()
     }
 
     @Test fun seriesUnionsSeasonsAndPreservesPayloadsWithoutMutatingProviderResponses() = runBlocking {
@@ -96,7 +105,7 @@ class CanonicalDetailTest {
 
     @Test fun movieKeepsEveryBindingAndOriginalData() = runBlocking {
         val responses = listOf(apiA, apiB).map { api -> LoadedDetail(binding(api),
-            api.newMovieLoadResponse("Film", "${api.mainUrl}/film", TvType.Movie, "opaque:${api.name}"), APIRepository(api)) }
+            api.newMovieLoadResponse("Film", "${api.mainUrl}/film", TvType.Movie, "opaque:${api.name}"), api) }
         val detail = CanonicalDetail.create(request().copy(kind = MediaKind.Movie), responses)!!
         assertEquals(2, detail.episodes.values.single().bindings.size)
         val token = (detail.response as MovieLoadResponse).dataUrl
@@ -190,7 +199,7 @@ class CanonicalDetailTest {
             episodes[DubStatus.Subbed] = listOf(apiA.newEpisode("vost", { season = 1; episode = 1 }, fix = false))
         }
         val b = series(apiB, listOf(Triple(1, 1, "unknown")))
-        val detail = CanonicalDetail.create(request(), listOf(LoadedDetail(binding(apiA), anime, APIRepository(apiA)), b))!!
+        val detail = CanonicalDetail.create(request(), listOf(LoadedDetail(binding(apiA), anime, apiA), b))!!
         assertEquals(1, detail.episodes.size)
         assertEquals(setOf("None", "Dubbed", "Subbed"), detail.episodes.values.single().tracks)
         val projected = detail.response as AnimeLoadResponse

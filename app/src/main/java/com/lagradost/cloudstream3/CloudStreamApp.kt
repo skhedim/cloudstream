@@ -84,6 +84,7 @@ class CloudStreamApp : Application(), SingletonImageLoader.Factory {
         }
 
         AppDebug.isDebug = BuildConfig.DEBUG
+        com.lagradost.cloudstream3.ui.search.aggregation.AndroidAggregation.install()
     }
 
     override fun attachBaseContext(base: Context?) {

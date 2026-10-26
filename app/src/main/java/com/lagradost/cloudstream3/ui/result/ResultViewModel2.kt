@@ -138,9 +138,9 @@ import com.lagradost.cloudstream3.utils.loadExtractor
 import com.lagradost.cloudstream3.utils.newExtractorLink
 import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetail
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailLoader
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailLoader
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream3.utils.AppUtils.parseJson
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CancellationException
@@ -2679,7 +2679,7 @@ class ResultViewModel2 : ViewModel() {
                 canonicalDetail = canonical
                 CanonicalDetailStore.remember(canonical.request)
                 val response = canonical.response
-                currentRepo = canonical.representative.repo
+                currentRepo = APIRepository(canonical.representative.api)
                 val mainId = response.getId()
                 preferDubStatus = getDub(mainId) ?: preferDubStatus
                 preferStartEpisode = getResultEpisode(mainId)
@@ -2689,7 +2689,7 @@ class ResultViewModel2 : ViewModel() {
                         type = response.type, name = response.name, poster = response.posterUrl,
                         id = mainId, cacheTime = System.currentTimeMillis()))
                 if (loadTrailers) loadTrailers(response)
-                postSuccessful(response, mainId, canonical.representative.repo, true, showFillers)
+                postSuccessful(response, mainId, APIRepository(canonical.representative.api), true, showFillers)
                 ensureActive()
                 if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
                     com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical)

@@ -5,7 +5,7 @@ import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.ui.APIRepository
 import com.lagradost.cloudstream3.ui.player.PlayerSubtitleHelper
 import com.lagradost.cloudstream3.ui.player.SubtitleData
-import com.lagradost.cloudstream3.ui.result.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex

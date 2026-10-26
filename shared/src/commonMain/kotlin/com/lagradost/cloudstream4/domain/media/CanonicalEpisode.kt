@@ -11,6 +11,11 @@ data class EpisodeCandidate(
     val track: String,
     val sourceIndex: Int,
     val scopedSeason: Int? = null,
+    /**
+     * The provider lists the whole work as one flat, season-less sequence. Absolute numbers only
+     * match other absolute lists: they are never converted to season/episode coordinates.
+     */
+    val absolute: Boolean = false,
 )
 
 data class CanonicalEpisode(
@@ -18,6 +23,7 @@ data class CanonicalEpisode(
     val season: Int?,
     val episode: Int?,
     val bindings: List<EpisodeProviderBinding>,
+    val absolute: Boolean = false,
 ) {
     val tracks: Set<String> get() = bindings.map { it.track }.toSet()
 }
@@ -30,6 +36,8 @@ object EpisodeAggregator {
             val episode = candidate.episode?.takeIf { it > 0 }
             val key = if (season != null && episode != null) {
                 "s$season:e$episode"
+            } else if (candidate.absolute && season == null && episode != null) {
+                "abs:e$episode"
             } else {
                 // Neither list position nor an episode title proves identity across providers.
                 val media = candidate.binding.media
@@ -40,9 +48,10 @@ object EpisodeAggregator {
         }
         return groups.map { (key, members) ->
             val first = members.first()
-            CanonicalEpisode(key, first.season?.takeIf { it >= 0 } ?: first.scopedSeason,
-                first.episode?.takeIf { it > 0 }, members.map { it.binding.copy(track = it.track) }.distinct())
-        }.sortedWith(compareBy<CanonicalEpisode> { it.season ?: Int.MAX_VALUE }
+            val absolute = key.startsWith("abs:")
+            CanonicalEpisode(key, if (absolute) null else first.season?.takeIf { it >= 0 } ?: first.scopedSeason,
+                first.episode?.takeIf { it > 0 }, members.map { it.binding.copy(track = it.track) }.distinct(), absolute)
+        }.sortedWith(compareBy<CanonicalEpisode> { it.absolute }.thenBy { it.season ?: Int.MAX_VALUE }
             .thenBy { it.episode ?: Int.MAX_VALUE }.thenBy { it.key })
     }
 }

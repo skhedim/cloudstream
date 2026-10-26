@@ -4,7 +4,7 @@ import android.app.Application
 import com.lagradost.cloudstream3.ui.player.VideoState
 import com.lagradost.cloudstream3.ui.player.VideoLink
 import com.lagradost.cloudstream3.ui.player.aggregation.*
-import com.lagradost.cloudstream3.ui.result.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
 import com.lagradost.cloudstream3.utils.*
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.*

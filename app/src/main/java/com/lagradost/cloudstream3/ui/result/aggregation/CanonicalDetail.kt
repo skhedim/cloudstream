@@ -5,42 +5,34 @@ import com.lagradost.cloudstream3.LoadResponse.Companion.addTMDbId
 import com.lagradost.cloudstream3.LoadResponse.Companion.addImdbId
 import com.lagradost.cloudstream3.ui.result.ResultEpisode
 import com.lagradost.cloudstream3.ui.result.VideoWatchState
-import com.lagradost.cloudstream4.aggregation.SearchMediaMetadataCache
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getVideoWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
 import com.lagradost.cloudstream3.utils.DataStoreHelper.setViewPos
 import com.lagradost.cloudstream3.utils.DataStoreHelper.setVideoWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailBuilder
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailModel
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.LoadedDetail
 import com.lagradost.cloudstream4.domain.media.*
-import kotlinx.serialization.Serializable
 import java.security.MessageDigest
 
-@Serializable
-data class EpisodeSourceBinding(
-    val apiName: String, val mainUrl: String, val mediaUrl: String, val data: String,
-    val track: String = "None",
-    val language: String? = null,
-)
-
-/** An app-only projection onto upstream's detail UI. Extensions only see their original payloads. */
+/** An app-only projection of [CanonicalDetailModel] onto upstream's detail UI. Extensions only see their original payloads. */
 data class CanonicalDetail(
-    val request: CanonicalDetailRequest,
+    val model: CanonicalDetailModel,
     val response: LoadResponse,
-    val representative: LoadedDetail,
     val episodes: Map<String, CanonicalEpisode>,
-    val loadedBindings: Int,
-    val rejectedBindings: Int,
-    val requestedBindings: Int,
-    val languages: Map<ProviderKey, String> = emptyMap(),
 ) {
+    val request: CanonicalDetailRequest get() = model.request
+    val representative: LoadedDetail get() = model.base
+    val loadedBindings: Int get() = model.compatible.size
+    val rejectedBindings: Int get() = model.rejected.size
+    val requestedBindings: Int get() = model.requestedBindings
     val incomplete get() = loadedBindings < requestedBindings
 
     fun resolve(episode: ResultEpisode): ResultEpisode {
         val canonical = episodes.getValue(episode.data)
-        val sources = canonical.bindings.map {
-            EpisodeSourceBinding(it.media.provider.name, it.media.provider.mainUrl, it.media.url, it.data,
-                it.track, languages[it.media.provider])
-        }
+        val sources = model.sources(canonical)
         val first = sources.first()
         val id = if (response is MovieLoadResponse) episode.parentId
             else "${request.identity}:${canonical.key}".hashCode()
@@ -67,92 +59,51 @@ data class CanonicalDetail(
     }
 
     companion object {
-        suspend fun create(request: CanonicalDetailRequest, loaded: List<LoadedDetail>): CanonicalDetail? {
-            val wantedFamily = MediaAggregator.family(request.kind)
-            val knownIds = request.externalIds.toMutableSet()
-            val compatible = loaded.filter { item ->
-                val response = item.response
-                val family = when (response) {
-                    is MovieLoadResponse -> "movie"
-                    is TvSeriesLoadResponse, is AnimeLoadResponse -> "series"
-                    else -> null
-                }
-                val ids = SearchMediaMetadataCache.get(item.binding.mediaBinding())?.ids.orEmpty()
-                val accepted = family == wantedFamily && knownIds.none { expected ->
-                    ids.any { actual -> actual.namespace == expected.namespace && actual != expected }
-                }
-                if (accepted) knownIds.addAll(ids)
-                accepted
-            }
-            val base = compatible.firstOrNull { it.binding.editions.isEmpty() }
-                ?: compatible.firstOrNull() ?: return null
-            val originals = linkedMapOf<String, Episode>()
-            val candidates = mutableListOf<EpisodeCandidate>()
-            compatible.forEach { item ->
-                fun add(episode: Episode, track: DubStatus, index: Int) {
-                    if (episode.data.isBlank()) return
-                    val source = EpisodeProviderBinding(item.binding.mediaBinding(), episode.data)
-                    val label = EpisodeNumbering.fromLabel(episode.name)
-                    val seasonNames = (item.response as? EpisodeResponse)?.seasonNames
-                    val season = seasonNames?.firstOrNull { it.season == episode.season }
-                        ?.displaySeason ?: episode.season ?: label?.season
-                    val scope = item.binding.scopedSeason
-                    // Contradictory numbering is kept in an unresolved section, never guessed.
-                    val conflict = scope != null && season != null && scope != season
-                    val candidate = EpisodeCandidate(source, if (conflict) null else season,
-                        episode.episode?.takeIf { it > 0 } ?: label?.episode,
-                        track.name, index, if (conflict) null else scope)
-                    candidates += candidate
-                    val key = EpisodeAggregator.aggregate(listOf(candidate)).single().key
-                    val previous = originals[key]
-                    if (previous == null || ((previous.name.isNullOrBlank() ||
-                                EpisodeNumbering.fromLabel(previous.name) != null) &&
-                                !episode.name.isNullOrBlank() && EpisodeNumbering.fromLabel(episode.name) == null))
-                        originals[key] = episode
-                }
-                when (val response = item.response) {
-                    is TvSeriesLoadResponse -> response.episodes.forEachIndexed { i, e -> add(e, DubStatus.None, i) }
-                    is AnimeLoadResponse -> response.episodes.forEach { (track, list) ->
-                        list.forEachIndexed { i, e -> add(e, track, i) }
-                    }
-                }
-            }
+        /** Season slots for rows that cannot be placed in a numbered season. */
+        const val UNLOCATED_SEASON = -1
+        const val ABSOLUTE_SEASON = -2
+
+        suspend fun create(request: CanonicalDetailRequest, loaded: List<LoadedDetail>): CanonicalDetail? =
+            CanonicalDetailBuilder.build(request, loaded)?.let { project(it) }
+
+        suspend fun project(model: CanonicalDetailModel): CanonicalDetail? {
+            val request = model.request
+            val base = model.base
             val routes = linkedMapOf<String, CanonicalEpisode>()
-            val api = base.repo.api
-            val projected = when (wantedFamily) {
+            val api = base.api
+            val projected = when (model.family) {
                 "movie" -> {
-                    val bindings = compatible.map { item ->
-                        EpisodeProviderBinding(item.binding.mediaBinding(), (item.response as MovieLoadResponse).dataUrl)
-                    }.filter { it.data.isNotBlank() }
-                    if (bindings.isEmpty()) return null
-                    routes["canonical:movie"] = CanonicalEpisode("movie", null, null, bindings)
+                    routes["canonical:movie"] = model.movie ?: return null
                     (base.response as MovieLoadResponse).copy(dataUrl = "canonical:movie")
                 }
                 "series" -> {
-                    val grouped = EpisodeAggregator.aggregate(candidates)
                     var unresolved = 0
-                    val rows = grouped.mapIndexed { index, episode ->
+                    val absoluteAsSeason = model.absoluteOnly
+                    val rows = model.episodes.mapIndexed { index, (episode, original) ->
                         val token = "canonical:episode:$index"
                         routes[token] = episode
-                        val original = originals.getValue(episode.key)
                         // Every uncertain row remains visible, with a unique display slot.
                         val located = episode.season != null && episode.episode != null
                         val displayName = if (EpisodeNumbering.fromLabel(original.name) != null)
                             original.name?.replace(Regex("\\s+(?:VF|VOSTFR|VOST)(?:\\s*(?:📜|🇫🇷|🇬🇧))*\\s*$", RegexOption.IGNORE_CASE), "")
                             else original.name
-                        val row = original.copy(data = token, name = displayName,
-                            season = if (located) episode.season else -1,
-                            episode = if (located) episode.episode else ++unresolved)
-                        row
+                        when {
+                            located -> original.copy(data = token, name = displayName,
+                                season = episode.season, episode = episode.episode)
+                            episode.absolute -> original.copy(data = token, name = displayName,
+                                season = if (absoluteAsSeason) 1 else ABSOLUTE_SEASON, episode = episode.episode)
+                            else -> original.copy(data = token, name = displayName,
+                                season = UNLOCATED_SEASON, episode = ++unresolved)
+                        }
                     }
+                    val context = CloudStreamApp.context
                     val seasons = rows.mapNotNull { it.season }.distinct().sorted().map {
-                        SeasonData(it, if (it == -1) CloudStreamApp.context?.getString(R.string.canonical_unlocated_episodes)
-                            ?: "Episodes to identify" else
-                            compatible.asSequence().mapNotNull { detail ->
-                                (detail.response as? EpisodeResponse)?.seasonNames?.firstOrNull { s ->
-                                    (s.displaySeason ?: s.season) == it
-                                }?.name
-                            }.firstOrNull(), displaySeason = it.takeIf { season -> season >= 0 })
+                        val name = when (it) {
+                            UNLOCATED_SEASON -> context?.getString(R.string.canonical_unlocated_episodes) ?: "Episodes to identify"
+                            ABSOLUTE_SEASON -> context?.getString(R.string.canonical_absolute_episodes) ?: "Absolute numbering"
+                            else -> model.seasonName(it)
+                        }
+                        SeasonData(it, name, displaySeason = it.takeIf { season -> season >= 0 })
                     }
                     if (base.response is AnimeLoadResponse) {
                         api.newAnimeLoadResponse(request.title, base.response.url, base.response.type) {
@@ -172,7 +123,7 @@ data class CanonicalDetail(
                 // Saved cards must reopen through a persisted search binding, even if load()
                 // returns a different canonical/redirected page URL.
                 url = base.binding.url
-                apiName = base.repo.name
+                apiName = api.name
                 year = request.year ?: metadata.year
                 // Stable identity for new history/bookmarks, independent of the representative URL.
                 uniqueUrl = "canonical:v1:" + MessageDigest.getInstance("SHA-256")
@@ -181,7 +132,7 @@ data class CanonicalDetail(
                 posterHeaders = metadata.posterHeaders?.toMap()
                 backgroundPosterUrl = metadata.backgroundPosterUrl
                 logoUrl = metadata.logoUrl
-                plot = compatible.firstNotNullOfOrNull { it.response.plot?.takeIf(String::isNotBlank) }
+                plot = model.compatible.firstNotNullOfOrNull { it.response.plot?.takeIf(String::isNotBlank) }
                 score = metadata.score
                 tags = metadata.tags?.toList()
                 actors = metadata.actors?.toList()
@@ -191,7 +142,7 @@ data class CanonicalDetail(
                 contentRating = metadata.contentRating
                 comingSoon = routes.isEmpty()
                 syncData = metadata.syncData.toMutableMap()
-                knownIds.forEach { id ->
+                model.knownIds.forEach { id ->
                     when (id.namespace) {
                         ExternalIdNamespace.TmdbMovie, ExternalIdNamespace.TmdbTv -> addTMDbId(id.value)
                         ExternalIdNamespace.Imdb -> addImdbId(id.value)
@@ -203,12 +154,7 @@ data class CanonicalDetail(
                     nextAiring = (metadata as? EpisodeResponse)?.nextAiring
                 }
             }
-            val rejected = (loaded - compatible.toSet()).map { it.binding.mediaBinding() }.toSet()
-            val verifiedRequest = request.copy(externalIds = knownIds,
-                bindings = request.bindings.filter { it.mediaBinding() !in rejected })
-            return CanonicalDetail(verifiedRequest, projected, base, routes,
-                compatible.size, loaded.size - compatible.size, request.bindings.size,
-                compatible.associate { it.binding.provider to it.repo.api.lang })
+            return CanonicalDetail(model, projected, routes)
         }
     }
 }

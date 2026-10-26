@@ -29,8 +29,11 @@ class MediaAggregator {
             val matches = possible.mapNotNull { group ->
                 reason(group, candidate, titles)?.let { group to it }
             }
-            // A trusted ID wins over title evidence. Never choose arbitrarily between works.
-            val match = matches.filter { it.second == MatchReason.ExternalId }.ifEmpty { matches }.singleOrNull()
+            // A trusted ID wins over title evidence, and an exact year over a neighbouring one.
+            // Never choose arbitrarily between works.
+            val match = matches.filter { it.second == MatchReason.ExternalId }
+                .ifEmpty { matches.filter { it.second == MatchReason.TitleYearType } }
+                .ifEmpty { matches }.singleOrNull()
             val group = match?.first ?: Group().also(groups::add)
             group.members.add(index to candidate)
             group.titles.addAll(titles)
@@ -53,6 +56,7 @@ class MediaAggregator {
                 members.flatMap { it.externalIds }.toSet(),
                 members.map { it.binding }, group.reasons.toSet(),
                 members.associate { it.binding to it.edition },
+                members.flatMap { it.alternateTitles + it.title }.filter { it.isNotBlank() }.toSet(),
             )
         }
     }
@@ -79,9 +83,11 @@ class MediaAggregator {
         if (candidateFamily == null || titles.intersect(sameEdition.flatMap { MediaAggregator.titles(it) }.toSet()).isEmpty()) return null
 
         val years = (sameEdition.mapNotNull { it.year } + listOfNotNull(candidate.year)).toSet()
-        if (years.size > 1) return null
+        // Catalogues disagree by one year (local release, first air date); a wider spread is another work.
+        if (years.isNotEmpty() && years.max() - years.min() > YEAR_TOLERANCE) return null
         // A known year cannot lend its identity to an otherwise unsupported missing-year result.
         if (candidate.year != null && sameEdition.any { it.year == candidate.year }) return MatchReason.TitleYearType
+        if (candidate.year != null && sameEdition.any { it.year != null }) return MatchReason.TitleNearYearType
         // A metadata-service poster plus the same title/type is independent corroboration when
         // the provider omitted years. No title-only or image-only merge, including for homonyms.
         if (sameEdition.any { it.artworkIds.intersect(candidate.artworkIds).isNotEmpty() }) return MatchReason.TitleArtworkType
@@ -99,14 +105,23 @@ class MediaAggregator {
     private data class TitleKey(val title: String, val family: String, val edition: Set<String>)
 
     companion object {
-        /** Preserve accents, numbers and subtitles; punctuation/case are presentation differences. */
+        const val YEAR_TOLERANCE = 1
+
+        /** Display/identity normalization: preserve accents, numbers and subtitles; punctuation/case are presentation differences. */
         private val punctuation = Regex("[’‘'\".:,!?…/\\\\()\\[\\]–—_-]+")
         private val whitespace = Regex("\\s+")
         fun normalizeTitle(title: String): String = title.trim().lowercase()
             .replace(punctuation, " ").replace(whitespace, " ").trim()
 
+        /**
+         * Matching key: [normalizeTitle] plus differences that never distinguish two works on their own
+         * once family, year and edition also agree: accents, `&`/and/et, Roman sequel numbers (II–IX).
+         */
+        fun matchKey(title: String): String = normalizeTitle(TitleFolding.foldAccents(title).replace("&", " & "))
+            .split(' ').joinToString(" ") { word -> TitleFolding.roman[word] ?: if (word == "and" || word == "et") "&" else word }
+
         fun titles(candidate: MediaCandidate): Set<String> =
-            (candidate.alternateTitles + candidate.title).map(::normalizeTitle).filter { it.isNotBlank() }.toSet()
+            (candidate.alternateTitles + candidate.title).map(::matchKey).filter { it.isNotBlank() }.toSet()
 
         fun family(kind: MediaKind): String? = when (kind) {
             MediaKind.Movie, MediaKind.AnimeMovie -> "movie"

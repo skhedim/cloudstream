@@ -19,7 +19,40 @@ data class SearchMediaMetadata(
     val year: Int?, val alternateTitles: Set<String>, val ids: Set<ExternalMediaId>,
     val artworkIds: Set<String> = emptySet(),
     val kind: MediaKind = MediaKind.Unknown,
-)
+) {
+    companion object {
+        /** Identity evidence from a loaded detail page: typed IDs, titles, year, TMDB artwork, kind. */
+        fun of(response: LoadResponse): SearchMediaMetadata {
+            val ids = buildSet {
+                fun addId(namespace: ExternalIdNamespace, value: String?) {
+                    value?.let { runCatching { ExternalMediaId(namespace, it.trim()) }.getOrNull() }?.let(::add)
+                }
+                addId(ExternalIdNamespace.Imdb, response.getImdbId())
+                val tmdbNamespace = when (response.type) {
+                    TvType.Movie, TvType.AnimeMovie -> ExternalIdNamespace.TmdbMovie
+                    TvType.TvSeries, TvType.Anime, TvType.Cartoon, TvType.AsianDrama -> ExternalIdNamespace.TmdbTv
+                    else -> null
+                }
+                tmdbNamespace?.let { addId(it, response.getTMDbId()) }
+                addId(ExternalIdNamespace.AniList, response.getAniListId())
+                addId(ExternalIdNamespace.MyAnimeList, response.getMalId())
+                addId(ExternalIdNamespace.Kitsu, response.getKitsuId())
+            }
+            val titles = buildSet {
+                add(response.name)
+                if (response is AnimeLoadResponse) {
+                    response.engName?.let(::add)
+                    response.japName?.let(::add)
+                    addAll(response.synonyms.orEmpty())
+                }
+            }
+            return SearchMediaMetadata(
+                response.year, titles, ids, SearchIdentityEvidence.artworkIds(response.posterUrl),
+                SearchMediaMapper.kind(response.type),
+            )
+        }
+    }
+}
 
 /** Bounded, in-memory metadata from already opened pages; search does not fetch every detail page. */
 object SearchMediaMetadataCache {
@@ -33,33 +66,7 @@ object SearchMediaMetadataCache {
         api: MainAPI, requestedUrl: String, response: LoadResponse,
         provider: ProviderKey = ProviderKey(api.name, api.mainUrl),
     ) {
-        val ids = buildSet {
-            fun addId(namespace: ExternalIdNamespace, value: String?) {
-                value?.let { runCatching { ExternalMediaId(namespace, it.trim()) }.getOrNull() }?.let(::add)
-            }
-            addId(ExternalIdNamespace.Imdb, response.getImdbId())
-            val tmdbNamespace = when (response.type) {
-                TvType.Movie, TvType.AnimeMovie -> ExternalIdNamespace.TmdbMovie
-                TvType.TvSeries, TvType.Anime, TvType.Cartoon, TvType.AsianDrama -> ExternalIdNamespace.TmdbTv
-                else -> null
-            }
-            tmdbNamespace?.let { addId(it, response.getTMDbId()) }
-            addId(ExternalIdNamespace.AniList, response.getAniListId())
-            addId(ExternalIdNamespace.MyAnimeList, response.getMalId())
-            addId(ExternalIdNamespace.Kitsu, response.getKitsuId())
-        }
-        val titles = buildSet {
-            add(response.name)
-            if (response is AnimeLoadResponse) {
-                response.engName?.let(::add)
-                response.japName?.let(::add)
-                addAll(response.synonyms.orEmpty())
-            }
-        }
-        val entry = Entry(System.currentTimeMillis(), SearchMediaMetadata(
-            response.year, titles, ids, SearchIdentityEvidence.artworkIds(response.posterUrl),
-            SearchMediaMapper.kind(response.type),
-        ))
+        val entry = Entry(System.currentTimeMillis(), SearchMediaMetadata.of(response))
         entries[ProviderBinding(provider, requestedUrl)] = entry
         entries[ProviderBinding(provider, response.url)] = entry
         while (entries.size > MAX_ENTRIES) entries.remove(entries.keys.first())

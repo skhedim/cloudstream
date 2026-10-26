@@ -1,19 +1,39 @@
-package com.lagradost.cloudstream3.ui.search.aggregation
+package com.lagradost.cloudstream4.aggregation
 
-import com.lagradost.cloudstream4.aggregation.SearchIdentityEvidence
+import com.fasterxml.jackson.databind.JsonNode
+import com.lagradost.cloudstream3.app
+import com.lagradost.cloudstream3.mapper
 import com.lagradost.cloudstream3.metaproviders.TmdbProvider
-import com.lagradost.cloudstream3.ui.search.SearchSuggestionApi
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import com.lagradost.cloudstream4.domain.media.ExternalMediaId
 import com.lagradost.cloudstream4.domain.media.MediaKind
 import com.lagradost.cloudstream4.domain.media.MediaReference
+import com.lagradost.nicehttp.NiceResponse
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
-import org.json.JSONObject
-import java.util.Locale
+
+/** CloudStream's existing public TMDB access (search suggestions, TmdbProvider); no extension credentials. */
+object TmdbAccess {
+    private const val API_URL = "https://api.themoviedb.org/3"
+    private const val API_KEY = "e6333b32409e02a4a6eba6fb7ff866bb"
+
+    suspend fun get(path: String, params: Map<String, String> = emptyMap()): NiceResponse =
+        app.get(API_URL + path, params = params + ("api_key" to API_KEY), cacheTime = 60 * 24)
+
+    suspend fun json(path: String, params: Map<String, String> = emptyMap()): JsonNode =
+        mapper.readTree(get(path, params).text)
+
+    fun posterArtwork(node: JsonNode?): Set<String> = buildSet {
+        node ?: return@buildSet
+        for (poster in node) {
+            val path = poster.path("file_path").asText("").takeIf { it.startsWith("/") } ?: continue
+            addAll(SearchIdentityEvidence.artworkIds("https://image.tmdb.org/t/p/original$path"))
+        }
+    }
+}
 
 /** Bounded optional TMDB lookups. Failures leave the provider-only search fully usable. */
-internal object SearchMetadataCatalog {
+object SearchMetadataCatalog {
     private data class Saved<T>(val time: Long, val value: T)
     private const val TTL = 24 * 60 * 60 * 1000L
     private val searches = linkedMapOf<String, Saved<List<MediaReference>>>()
@@ -28,17 +48,16 @@ internal object SearchMetadataCatalog {
         while (cache.size > limit) cache.remove(cache.keys.first())
     }
 
-    suspend fun search(query: String): List<MediaReference> {
-        val language = Locale.getDefault().toLanguageTag()
+    suspend fun search(query: String, language: String = AggregationPlatform.metadataLanguage()): List<MediaReference> {
         val key = "$language:${query.trim().lowercase()}"
         cached(searches,key)?.let { return it }
         return try {
             withTimeoutOrNull(5_000) {
                 val references = mutableListOf<MediaReference>()
                 for (page in 1..2) {
-                    val result = SearchSuggestionApi.metadata("/search/multi",mapOf(
+                    val result = mapper.readValue(TmdbAccess.get("/search/multi",mapOf(
                         "query" to query, "language" to language, "page" to page.toString(),
-                    )).parsed<TmdbProvider.TmdbPageResult>()
+                    )).text, TmdbProvider.TmdbPageResult::class.java)
                     val items = result.results ?: return@withTimeoutOrNull emptyList()
                     references += items.mapNotNull { item ->
                         val movie = when (item.mediaType) { "movie" -> true; "tv" -> false; else -> return@mapNotNull null }
@@ -69,14 +88,9 @@ internal object SearchMetadataCatalog {
         return try {
             withTimeoutOrNull(3_000) {
                 // No language filter: alternate localized posters are identity evidence too.
-                val response = JSONObject(SearchSuggestionApi.metadata("/$type/${reference.id.value}/images").text)
-                val posters = response.optJSONArray("posters") ?: return@withTimeoutOrNull reference
-                val artwork = buildSet {
-                    for (index in 0 until (posters.length())) {
-                        val path = posters.optJSONObject(index)?.optString("file_path") ?: continue
-                        addAll(SearchIdentityEvidence.artworkIds("https://image.tmdb.org/t/p/original$path"))
-                    }
-                }
+                val posters = TmdbAccess.json("/$type/${reference.id.value}/images").get("posters")
+                    ?: return@withTimeoutOrNull reference
+                val artwork = TmdbAccess.posterArtwork(posters)
                 save(images,reference.id,artwork,100)
                 reference.copy(artworkIds = reference.artworkIds+artwork)
             } ?: reference
@@ -91,14 +105,9 @@ internal object SearchMetadataCatalog {
         cached(seasonImages, key)?.let { return reference.copy(artworkIds = reference.artworkIds + it) }
         return try {
             withTimeoutOrNull(3_000) {
-                val response = JSONObject(SearchSuggestionApi.metadata("/tv/${reference.id.value}/season/$season/images").text)
-                val posters = response.optJSONArray("posters") ?: return@withTimeoutOrNull reference
-                val artwork = buildSet {
-                    for (index in 0 until posters.length()) {
-                        val path = posters.optJSONObject(index)?.optString("file_path") ?: continue
-                        addAll(SearchIdentityEvidence.artworkIds("https://image.tmdb.org/t/p/original$path"))
-                    }
-                }
+                val posters = TmdbAccess.json("/tv/${reference.id.value}/season/$season/images").get("posters")
+                    ?: return@withTimeoutOrNull reference
+                val artwork = TmdbAccess.posterArtwork(posters)
                 save(seasonImages, key, artwork, 100)
                 reference.copy(artworkIds = reference.artworkIds + artwork)
             } ?: reference

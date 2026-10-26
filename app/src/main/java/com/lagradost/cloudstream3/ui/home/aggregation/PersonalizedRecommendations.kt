@@ -27,7 +27,7 @@ data class RecommendationSeed(val key: String, val sources: List<RecommendationS
         if (externalIds.any { expected -> actualIds.any { it.namespace==expected.namespace && it!=expected } }) return false
         if (externalIds.intersect(actualIds).isNotEmpty()) return true
         if (year!=null && response.year!=null && year!=response.year) return false
-        return MediaAggregator.normalizeTitle(response.name) in (alternateTitles+title).map(MediaAggregator::normalizeTitle)
+        return MediaAggregator.matchKey(response.name) in (alternateTitles+title).map(MediaAggregator::matchKey)
     }
 }
 data class RecommendationBatch(val seed: String, val source: RecommendationSource, val items: List<SearchResponse>,
@@ -125,6 +125,6 @@ class PersonalizedRecommendationsLoader(
         else if (candidate.externalIds.any { it.namespace == ref.id.namespace && it != ref.id }) false
         else ref.id in candidate.externalIds ||
             ((candidate.year == null || ref.year == null || candidate.year == ref.year) &&
-                MediaAggregator.titles(candidate).intersect((ref.alternateTitles+ref.title).map(MediaAggregator::normalizeTitle).toSet()).isNotEmpty())
+                MediaAggregator.titles(candidate).intersect((ref.alternateTitles+ref.title).map(MediaAggregator::matchKey).toSet()).isNotEmpty())
     }
 }

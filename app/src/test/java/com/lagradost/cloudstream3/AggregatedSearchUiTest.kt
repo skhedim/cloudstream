@@ -75,7 +75,7 @@ class AggregatedSearchUiTest {
         assertSame(card, navigation.card)
         val bundle = com.lagradost.cloudstream3.ui.result.ResultFragment.newInstance(navigation.card)
         val request = com.lagradost.cloudstream3.utils.AppUtils.parseJson<
-            com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest>(bundle.getString("canonicalDetailV1")!!)
+            com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest>(bundle.getString("canonicalDetailV1")!!)
         assertEquals(3, request.bindings.size)
         assertEquals("https://provider1.example/show", navigation.card.url)
         assertNull(ShadowDialog.getLatestDialog())

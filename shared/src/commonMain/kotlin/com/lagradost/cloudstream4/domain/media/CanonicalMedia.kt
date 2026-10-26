@@ -32,7 +32,7 @@ data class MediaCandidate(
     val artworkSignature: ArtworkSignature? = null,
 )
 
-enum class MatchReason { ExternalId, TitleYearType, TitleArtworkType, TitleVisualArtworkType }
+enum class MatchReason { ExternalId, TitleYearType, TitleNearYearType, TitleArtworkType, TitleVisualArtworkType }
 
 data class CanonicalMedia(
     /** Stable within a search session; never replaces saved playback/favourite IDs. */
@@ -45,4 +45,6 @@ data class CanonicalMedia(
     val matchReasons: Set<MatchReason>,
     /** Retain season/part scope even when a trusted show ID groups several catalogue entries. */
     val bindingEditions: Map<ProviderBinding, Set<String>> = emptyMap(),
+    /** Every provider/metadata title of the grouped candidates, as supplied (not normalized). */
+    val titles: Set<String> = emptySet(),
 )

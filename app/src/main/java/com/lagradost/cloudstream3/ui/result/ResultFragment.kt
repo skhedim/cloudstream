@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3.ui.result
 
+import com.lagradost.cloudstream3.ui.result.aggregation.from
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.TextView
@@ -23,8 +24,8 @@ import com.lagradost.cloudstream3.utils.ImageLoader.loadImage
 import com.lagradost.cloudstream3.utils.UiImage
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
-import com.lagradost.cloudstream3.ui.result.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream3.utils.AppUtils.toJsonLiteral
 

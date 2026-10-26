@@ -20,7 +20,9 @@ object MediaReferenceResolver {
             }
         }
         val direct = compatible.filter { it.id in candidate.externalIds }
-        val matches = direct.ifEmpty { compatible.filter { supports(candidate,it) } }
+        // An exact year is preferred, so a neighbouring-year homonym cannot make the reference ambiguous.
+        val supported = compatible.filter { supports(candidate,it) }
+        val matches = direct.ifEmpty { supported.filter { it.year == candidate.year }.ifEmpty { supported } }
         val ref = matches.distinctBy { it.id }.singleOrNull() ?: return candidate
         return candidate.copy(
             title = if (candidate.edition.all { it.startsWith("season:") }) ref.title else candidate.title,
@@ -33,17 +35,19 @@ object MediaReferenceResolver {
 
     fun sharesTitle(candidate: MediaCandidate, ref: MediaReference): Boolean =
         MediaAggregator.titles(candidate).intersect(
-            (ref.alternateTitles + ref.title).map(MediaAggregator::normalizeTitle).toSet()
+            (ref.alternateTitles + ref.title).map(MediaAggregator::matchKey).toSet()
         ).isNotEmpty()
 
     private fun supports(candidate: MediaCandidate, ref: MediaReference): Boolean {
         if (!sharesTitle(candidate,ref)) return false
-        if (candidate.year != null && ref.year != null && candidate.year != ref.year) return false
+        val nearYear = candidate.year != null && ref.year != null &&
+            kotlin.math.abs(candidate.year - ref.year) <= MediaAggregator.YEAR_TOLERANCE
+        if (candidate.year != null && ref.year != null && !nearYear) return false
         val artwork = candidate.artworkIds.intersect(ref.artworkIds).isNotEmpty()
         // A verified poster can correct an extension's erroneous Movie/TvSeries classification.
         if (artwork) return true
         return MediaAggregator.family(candidate.kind) != null &&
             MediaAggregator.family(candidate.kind) == MediaAggregator.family(ref.kind) &&
-            candidate.year != null && candidate.year == ref.year
+            nearYear
     }
 }

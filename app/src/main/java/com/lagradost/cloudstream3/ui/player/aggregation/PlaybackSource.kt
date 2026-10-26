@@ -1,6 +1,6 @@
 package com.lagradost.cloudstream3.ui.player.aggregation
 
-import com.lagradost.cloudstream3.ui.result.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
 import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkPlayList
 import com.lagradost.cloudstream3.utils.Qualities

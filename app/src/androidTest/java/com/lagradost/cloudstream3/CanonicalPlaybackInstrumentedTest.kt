@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream3
 
+import com.lagradost.cloudstream3.ui.result.aggregation.from
 import android.app.Dialog
 import android.graphics.Bitmap
 import android.view.View
@@ -15,8 +16,8 @@ import com.lagradost.cloudstream3.ui.player.aggregation.*
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
 import com.lagradost.cloudstream3.ui.search.aggregation.aggregate
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailRequest
-import com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailStore
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream3.utils.AppContextUtils.loadSearchResult
 import com.lagradost.cloudstream3.utils.DataStoreHelper
 import com.lagradost.cloudstream3.utils.ExtractorLink

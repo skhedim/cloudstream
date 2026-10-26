@@ -1,6 +1,8 @@
 package com.lagradost.cloudstream3
 
-import com.lagradost.cloudstream3.ui.result.aggregation.*
+import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.DetailBinding
+import com.lagradost.cloudstream4.aggregation.*
 import com.lagradost.cloudstream4.domain.media.*
 import kotlinx.coroutines.*
 import org.junit.Assert.*
