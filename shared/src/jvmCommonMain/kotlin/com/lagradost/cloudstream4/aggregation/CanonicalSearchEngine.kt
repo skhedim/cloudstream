@@ -158,13 +158,15 @@ class CanonicalSearchEngine(
         if (trimmed.length <= 1) { publish(); return@confine }
         this@CanonicalSearchEngine.query = trimmed
         this@CanonicalSearchEngine.quick = quick
-        this@CanonicalSearchEngine.providers = providers
-        session.begin(providers.map { it.key })
-        if (aggregate && providers.isNotEmpty()) loadCatalog(trimmed)
-        val requests = providers.mapNotNull { session.request(it.key) }
+        // Providers whose recent searches all came back empty while others found results are rested.
+        val usable = providers.filter { ProviderHealth.searchUsable(it.id) }.ifEmpty { providers }
+        this@CanonicalSearchEngine.providers = usable
+        session.begin(usable.map { it.key })
+        if (aggregate && usable.isNotEmpty()) loadCatalog(trimmed)
+        val requests = usable.mapNotNull { session.request(it.key) }
         loading = true
         _state.value = CanonicalSearchState(query = trimmed, published = false, aggregate = aggregate, loading = true)
-        searchJob = scope.launch(confined) { loadPages(trimmed, providers, requests, quick) }
+        searchJob = scope.launch(confined) { loadPages(trimmed, usable, requests, quick) }
     }
 
     /** Requests the next page of every unfinished provider; failed pages are retried. */
@@ -188,12 +190,14 @@ class CanonicalSearchEngine(
     }
 
     private suspend fun loadPages(query: String, sources: List<RegisteredProvider>, requests: List<PageRequest>, quick: Boolean) {
+        val answers = java.util.concurrent.ConcurrentHashMap<RegisteredProvider, Int>()
         coroutineScope {
             requests.map { request ->
                 async(Dispatchers.IO) {
                     val provider = sources.first { it.key == request.provider }
                     val result: SearchResponseList? = if (quick) gateway().quickSearch(provider.api, query)
                         else gateway().search(provider.api, query, request.page)
+                    if (request.page == 1) answers[provider] = result?.items?.size ?: -1
                     withContext(confined) {
                         currentCoroutineContext().ensureActive()
                         val changed = if (result != null) session.accept(request, result.items, result.hasNext)
@@ -204,6 +208,15 @@ class CanonicalSearchEngine(
             }.awaitAll()
         }
         currentCoroutineContext().ensureActive()
+        // Search health: an empty first page only counts when at least two other providers found something.
+        val answered = answers.values.count { it > 0 }
+        answers.forEach { (provider, count) ->
+            when {
+                count > 0 -> ProviderHealth.recordSearch(provider.id, true)
+                count < 0 || answered >= 2 -> ProviderHealth.recordSearch(provider.id, false)
+            }
+        }
+        if (answers.isNotEmpty()) ProviderHealth.persist()
         if (requests.isEmpty() || session.isCurrent(requests.first())) {
             loading = false
             publish()
@@ -225,7 +238,13 @@ class CanonicalSearchEngine(
             val raw = SearchMediaMapper.candidate(key, response, classes[key])
             MediaReferenceResolver.enrich(raw.copy(artworkSignature = raw.artworkIds.firstNotNullOfOrNull { visualSignatures[it] }), references)
         } else emptyList()
-        cards = if (aggregate) SearchMediaMapper.group(aggregator, interleaved, candidates) else emptyList()
+        // Works offered in the viewer's language come first; foreign-only works keep their order after them.
+        val viewer = PlaybackSources.viewerLanguage()
+        val native = providers.filter { provider ->
+            provider.language.substringBefore('-').lowercase().let { it == viewer || it == "multi" || it == "mul" || it == "all" }
+        }.map { it.key }.toSet()
+        cards = if (aggregate) SearchMediaMapper.group(aggregator, interleaved, candidates)
+            .sortedByDescending { card -> native.isEmpty() || card.media.bindings.any { it.provider in native } } else emptyList()
         _state.value = CanonicalSearchState(query, true, snapshot, visible, interleaved, candidates, cards, aggregate,
             snapshot.values.maxOfOrNull { it.page } ?: 0, session.hasNext, session.hasFailures, loading)
         scheduleEnrichment()

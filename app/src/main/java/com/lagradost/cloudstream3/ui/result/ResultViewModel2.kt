@@ -153,6 +153,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 import java.util.concurrent.TimeUnit
 
 /** This starts at 1 */
@@ -2657,7 +2658,7 @@ class ResultViewModel2 : ViewModel() {
         activity: Activity?, request: CanonicalDetailRequest, showFillers: Boolean,
         autostart: AutoResume?, loadTrailers: Boolean,
     ) = kotlinx.coroutines.coroutineScope {
-        val pinned = CanonicalDetailStore.pin(request)
+        var pinned = CanonicalDetailStore.pin(request)
         val publishLock = kotlinx.coroutines.sync.Mutex()
         var published = 0
         var latest: List<com.lagradost.cloudstream4.aggregation.LoadedDetail> = emptyList()
@@ -2691,6 +2692,19 @@ class ResultViewModel2 : ViewModel() {
             postSuccessful(response, mainId, repo, true, showFillers)
         }
 
+        // Look for the same work at providers that are not bound yet (home/recommendation cards
+        // usually come from one catalogue), at most once a day per work.
+        val completion = if (pinned.completedAt?.let { System.currentTimeMillis() - it < 24 * 60 * 60_000L } == true) null
+            else async(kotlinx.coroutines.Dispatchers.IO) {
+                val providers = context?.let { ctx ->
+                    com.lagradost.cloudstream3.ui.search.SearchScope.availableProviders(ctx, true)
+                }.orEmpty().map { api ->
+                    com.lagradost.cloudstream4.aggregation.RegisteredProvider(
+                        com.lagradost.cloudstream4.aggregation.ProviderIds.of(api),
+                        com.lagradost.cloudstream4.domain.media.ProviderKey(api.name, api.mainUrl), api)
+                }
+                com.lagradost.cloudstream4.aggregation.CanonicalBindingCompleter().complete(pinned, providers)
+            }
         val early = launch {
             delay(CANONICAL_FIRST_PUBLISH_MS)
             if (latest.any { it.binding.editions.isEmpty() }) publish(latest, false)
@@ -2703,15 +2717,23 @@ class ResultViewModel2 : ViewModel() {
         })
         early.cancel()
         ensureActive()
-        publish(details, true)
+        val extra = completion?.await().orEmpty()
+        val all = if (extra.isEmpty()) details else {
+            pinned = pinned.copy(bindings = (pinned.bindings + extra).distinctBy { it.mediaBinding() })
+            details + CanonicalDetailLoader().load(pinned.copy(bindings = extra))
+        }
+        if (completion != null) pinned = pinned.copy(completedAt = System.currentTimeMillis())
+        ensureActive()
+        publish(all, true)
         val canonical = canonicalDetail
         if (canonical == null || !firstPublished) {
             _page.postValue(Resource.Failure(false,
                 context?.getString(R.string.canonical_detail_failed) ?: "Unable to load this title"))
             return@coroutineScope
         }
-        CanonicalDetailStore.remember(canonical.request)
-        Log.i(TAG, "Canonical detail: ${canonical.loadedBindings}/${canonical.requestedBindings} bindings in " +
+        CanonicalDetailStore.remember(canonical.request.copy(completedAt = pinned.completedAt))
+        Log.i(TAG, "Canonical detail: ${canonical.loadedBindings}/${canonical.requestedBindings} bindings " +
+            "(${extra.size} found by completion) in " +
             "${System.currentTimeMillis() - started} ms, ${canonical.rejectedBindings} rejected")
         if (com.lagradost.cloudstream3.BuildConfig.DEBUG) {
             com.lagradost.cloudstream3.ui.result.aggregation.CanonicalDetailDiagnostics.write(canonical,

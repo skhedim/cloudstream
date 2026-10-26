@@ -4,6 +4,8 @@
     <string name="aggregate_home_des">Réunit les nouveautés des extensions activées dans un accueil commun.</string>
     <string name="home_news">Découvrir</string>
     <string name="home_recent_additions">Derniers ajouts</string>
+    <string name="home_top10">Top 10 de la semaine</string>
+    <string name="home_trending">Tendances du moment</string>
     <string name="home_for_you">Pour toi · d’après ton historique</string>
     <string name="home_for_you_movies">Films pour toi</string>
     <string name="home_for_you_series">Séries pour toi</string>

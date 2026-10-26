@@ -11,8 +11,10 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 /** Rows describe content, never extension labels. No release dates are invented. */
+/** Shelves in display order, like streaming platforms: what everyone watches, what is new, what is for you. */
 enum class HomeShelf(val title: Int) {
-    Recent(R.string.home_recent_additions), ForYou(R.string.home_for_you_movies), ForYouSeries(R.string.home_for_you_series),
+    Top10(R.string.home_top10), Recent(R.string.home_recent_additions), Trending(R.string.home_trending),
+    ForYou(R.string.home_for_you_movies), ForYouSeries(R.string.home_for_you_series),
     Movies(R.string.home_movies), Series(R.string.home_series),
     Anime(R.string.home_anime), Documentaries(R.string.home_documentaries), Action(R.string.home_action),
     Comedy(R.string.home_comedy), Thriller(R.string.home_thriller), ScienceFiction(R.string.home_scifi),
@@ -73,8 +75,13 @@ class AggregatedHomeProjector {
         loaded.forEach { (id, signature) -> signatures[id] = signature!! }
         loaded.isNotEmpty()
     }
+    /**
+     * @param trending this week's TMDB ranks (0 = most watched); ranks and features available works only
+     * @param native providers in the viewer's language; cards available only elsewhere are left out
+     */
     fun project(feeds: List<HomeFeed>, recommendations: List<RecommendationBatch> = emptyList(),
-        excluded: List<MediaCandidate> = emptyList()): List<HomeShelfItems> {
+        excluded: List<MediaCandidate> = emptyList(), trending: Map<ExternalMediaId, Int> = emptyMap(),
+        native: Set<ProviderKey>? = null): List<HomeShelfItems> {
         data class Item(val feed: HomeFeed, val response: SearchResponse, val section: String)
         val lists = feeds.map { feed -> feed.sections.flatMap { section ->
             section.list.take(120).map { Item(feed, it, section.name) }
@@ -109,7 +116,15 @@ class AggregatedHomeProjector {
             val bindings = media.bindings.filter { it in responses }
             if (bindings.isEmpty()) null else AggregatedSearchResponse(media.copy(bindings = bindings,
                 bindingEditions = media.bindingEditions.filterKeys { it in responses }), bindings.map { responses.getValue(it) })
-        }.sortedBy { card -> card.media.bindings.minOf { order.getValue(it) } }
+        }.filter { card -> native == null || card.media.bindings.any { it.provider in native } }
+            .sortedBy { card -> card.media.bindings.minOf { order.getValue(it) } }
+        fun rank(card: AggregatedSearchResponse) = card.media.externalIds.mapNotNull { trending[it] }.minOrNull()
+        fun availability(card: AggregatedSearchResponse) = card.media.bindings.map { it.provider }.distinct().size
+        val ranked = cards.filter { rank(it) != null }.sortedBy { rank(it) }
+        val top10 = ranked.take(10).map { it.media.id }.toSet()
+        // Popular first, then works offered by more providers; ties keep the feeds' order.
+        val byPopularity = compareBy<AggregatedSearchResponse> { rank(it) ?: Int.MAX_VALUE }
+            .thenByDescending { minOf(availability(it), 3) }
         val unresolvedTitles = cards.groupBy { MediaAggregator.matchKey(it.name) }
             .filterValues { group -> group.size > 1 && group.mapNotNull { it.media.year }.distinct().size <= 1 }.keys
         detailRequests = candidates.filter { MediaAggregator.matchKey(it.title) in unresolvedTitles &&
@@ -134,6 +149,8 @@ class AggregatedHomeProjector {
         fun matches(card: AggregatedSearchResponse, shelf: HomeShelf) = when (shelf) {
             HomeShelf.ForYou -> card.media.id !in seenIds && votesFor(card).isNotEmpty() && MediaAggregator.family(card.media.kind) == "movie"
             HomeShelf.ForYouSeries -> card.media.id !in seenIds && votesFor(card).isNotEmpty() && MediaAggregator.family(card.media.kind) == "series"
+            HomeShelf.Top10 -> card.media.id in top10
+            HomeShelf.Trending -> rank(card) != null && card.media.id !in top10
             HomeShelf.Recent -> card.media.bindings.any { it in latest }
             HomeShelf.Movies -> card.media.kind == MediaKind.Movie
             HomeShelf.Series -> card.media.kind in setOf(MediaKind.Series, MediaKind.AsianDrama)
@@ -160,7 +177,12 @@ class AggregatedHomeProjector {
                     }
                 }
                 selected.values.take(500)
-            } else matching.take(500)
+            } else when (shelf) {
+                HomeShelf.Top10, HomeShelf.Trending -> matching.sortedBy { rank(it) }
+                // New additions keep their recency order, works on several providers slightly first.
+                HomeShelf.Recent -> matching.sortedByDescending { minOf(availability(it), 3) }
+                else -> matching.sortedWith(byPopularity)
+            }.take(500)
             val minimum = if (shelf in setOf(HomeShelf.Action, HomeShelf.Comedy, HomeShelf.Thriller, HomeShelf.ScienceFiction)) 3 else 1
             list.takeIf { it.size >= minimum }?.let { HomeShelfItems(shelf, it) }
         }

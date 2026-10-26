@@ -33,6 +33,8 @@ data class CanonicalDetailRequest(
     val edition: Set<String> = emptySet(),
     /** Every title observed for the work while matching; used to verify loaded detail pages. */
     val aliases: Set<String> = emptySet(),
+    /** When other providers were last searched for this work ([CanonicalBindingCompleter]). */
+    val completedAt: Long? = null,
 ) {
     companion object {
         fun from(media: CanonicalMedia, title: String = media.title,
@@ -78,7 +80,8 @@ class CanonicalDetailStore(private val store: () -> KeyValueStore = { Aggregatio
         }
         return request.copy(identity = existing?.identity ?: request.identity,
             bindings = (request.bindings + existing?.bindings.orEmpty()).distinctBy { it.mediaBinding() },
-            aliases = request.aliases + existing?.aliases.orEmpty())
+            aliases = request.aliases + existing?.aliases.orEmpty(),
+            completedAt = request.completedAt ?: existing?.completedAt)
     }
 
     @Synchronized

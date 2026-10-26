@@ -776,8 +776,6 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
             homeMasterRecycler.setRecycledViewPool(ParentItemAdapter.sharedPool)
             homeMasterRecycler.adapter = homeMasterAdapter
             if (homeViewModel.aggregated) {
-                homeMasterRecycler.setPadding(0, (if (isLayout(PHONE)) 48 else 72).toPx, 0, 0)
-                homeMasterRecycler.clipToPadding = true
                 homeApiFab.setIconResource(R.drawable.ic_baseline_keyboard_arrow_down_24)
             }
 
@@ -852,10 +850,7 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                         val view = recyclerView.findViewHolderForAdapterPosition(0)?.itemView
                         val scrollParent = binding.homeApiHolder
 
-                        if (homeViewModel.aggregated) {
-                            scrollParent.isVisible = true
-                            scrollParent.translationY = 0f
-                        } else if (view == null) {
+                        if (view == null) {
                             // The first view is not visible, so we can assume we have scrolled past it
                             scrollParent.isVisible = false
                         } else {

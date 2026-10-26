@@ -1,0 +1,440 @@
+[
+ {
+  "kind": "movie",
+  "tmdb": 693134,
+  "imdb": "tt15239678",
+  "title": "Dune : Deuxième partie",
+  "original": "Dune: Part Two",
+  "year": 2024,
+  "runtime": 165
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1084736,
+  "imdb": "tt26446278",
+  "title": "Le Comte de Monte-Cristo",
+  "original": "Le Comte de Monte-Cristo",
+  "year": 2024,
+  "runtime": 178
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1022789,
+  "imdb": "tt22022452",
+  "title": "Vice-versa 2",
+  "original": "Inside Out 2",
+  "year": 2024,
+  "runtime": 97
+ },
+ {
+  "kind": "movie",
+  "tmdb": 533535,
+  "imdb": "tt6263850",
+  "title": "Deadpool & Wolverine",
+  "original": "Deadpool & Wolverine",
+  "year": 2024,
+  "runtime": 128
+ },
+ {
+  "kind": "movie",
+  "tmdb": 558449,
+  "imdb": "tt9218128",
+  "title": "Gladiator II",
+  "original": "Gladiator II",
+  "year": 2024,
+  "runtime": 148
+ },
+ {
+  "kind": "movie",
+  "tmdb": 402431,
+  "imdb": "tt1262426",
+  "title": "Wicked",
+  "original": "Wicked",
+  "year": 2024,
+  "runtime": 160
+ },
+ {
+  "kind": "movie",
+  "tmdb": 762509,
+  "imdb": "tt13186482",
+  "title": "Mufasa : Le Roi Lion",
+  "original": "Mufasa: The Lion King",
+  "year": 2024,
+  "runtime": 118
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1152014,
+  "imdb": "tt30795948",
+  "title": "Un p'tit truc en plus",
+  "original": "Un p'tit truc en plus",
+  "year": 2024,
+  "runtime": 99
+ },
+ {
+  "kind": "movie",
+  "tmdb": 959604,
+  "imdb": "tt27490099",
+  "title": "L'Amour ouf",
+  "original": "L'Amour ouf",
+  "year": 2024,
+  "runtime": 161
+ },
+ {
+  "kind": "movie",
+  "tmdb": 974576,
+  "imdb": "tt20215234",
+  "title": "Conclave",
+  "original": "Conclave",
+  "year": 2024,
+  "runtime": 120
+ },
+ {
+  "kind": "movie",
+  "tmdb": 575265,
+  "imdb": "tt9603208",
+  "title": "Mission : Impossible - The Final Reckoning",
+  "original": "Mission: Impossible - The Final Reckoning",
+  "year": 2025,
+  "runtime": 173
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1061474,
+  "imdb": "tt5950044",
+  "title": "Superman",
+  "original": "Superman",
+  "year": 2025,
+  "runtime": 130
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1234821,
+  "imdb": "tt31036941",
+  "title": "Jurassic World : Renaissance",
+  "original": "Jurassic World Rebirth",
+  "year": 2025,
+  "runtime": 134
+ },
+ {
+  "kind": "movie",
+  "tmdb": 552524,
+  "imdb": "tt11655566",
+  "title": "Lilo & Stitch",
+  "original": "Lilo & Stitch",
+  "year": 2025,
+  "runtime": 108
+ },
+ {
+  "kind": "movie",
+  "tmdb": 911430,
+  "imdb": "tt16311594",
+  "title": "F1® Le Film",
+  "original": "F1",
+  "year": 2025,
+  "runtime": 155
+ },
+ {
+  "kind": "movie",
+  "tmdb": 1084242,
+  "imdb": "tt26443597",
+  "title": "Zootopie 2",
+  "original": "Zootopia 2",
+  "year": 2025,
+  "runtime": 108
+ },
+ {
+  "kind": "movie",
+  "tmdb": 872585,
+  "imdb": "tt15398776",
+  "title": "Oppenheimer",
+  "original": "Oppenheimer",
+  "year": 2023,
+  "runtime": 181
+ },
+ {
+  "kind": "movie",
+  "tmdb": 346698,
+  "imdb": "tt1517268",
+  "title": "Barbie",
+  "original": "Barbie",
+  "year": 2023,
+  "runtime": 114
+ },
+ {
+  "kind": "movie",
+  "tmdb": 915935,
+  "imdb": "tt17009710",
+  "title": "Anatomie d'une chute",
+  "original": "Anatomie d'une chute",
+  "year": 2023,
+  "runtime": 151
+ },
+ {
+  "kind": "movie",
+  "tmdb": 643215,
+  "imdb": "tt11210390",
+  "title": "Astérix & Obélix : L'Empire du Milieu",
+  "original": "Astérix & Obélix : L'Empire du Milieu",
+  "year": 2023,
+  "runtime": 112
+ },
+ {
+  "kind": "movie",
+  "tmdb": 77338,
+  "imdb": "tt1675434",
+  "title": "Intouchables",
+  "original": "Intouchables",
+  "year": 2011,
+  "runtime": 112
+ },
+ {
+  "kind": "movie",
+  "tmdb": 194,
+  "imdb": "tt0211915",
+  "title": "Le Fabuleux Destin d'Amélie Poulain",
+  "original": "Le Fabuleux Destin d'Amélie Poulain",
+  "year": 2001,
+  "runtime": 120
+ },
+ {
+  "kind": "movie",
+  "tmdb": 27205,
+  "imdb": "tt1375666",
+  "title": "Inception",
+  "original": "Inception",
+  "year": 2010,
+  "runtime": 148
+ },
+ {
+  "kind": "movie",
+  "tmdb": 8587,
+  "imdb": "tt0110357",
+  "title": "Le Roi lion",
+  "original": "The Lion King",
+  "year": 1994,
+  "runtime": 88
+ },
+ {
+  "kind": "movie",
+  "tmdb": 420818,
+  "imdb": "tt6105098",
+  "title": "Le Roi Lion",
+  "original": "The Lion King",
+  "year": 2019,
+  "runtime": 118
+ },
+ {
+  "kind": "movie",
+  "tmdb": 6114,
+  "imdb": "tt0103874",
+  "title": "Dracula",
+  "original": "Bram Stoker's Dracula",
+  "year": 1992,
+  "runtime": 130
+ },
+ {
+  "kind": "movie",
+  "tmdb": 426063,
+  "imdb": "tt5040012",
+  "title": "Nosferatu",
+  "original": "Nosferatu",
+  "year": 2024,
+  "runtime": 127
+ },
+ {
+  "kind": "movie",
+  "tmdb": 372058,
+  "imdb": "tt5311514",
+  "title": "Your Name.",
+  "original": "君の名は。",
+  "year": 2016,
+  "runtime": 107
+ },
+ {
+  "kind": "movie",
+  "tmdb": 569094,
+  "imdb": "tt9362722",
+  "title": "Spider-Man : Across the Spider-Verse",
+  "original": "Spider-Man: Across the Spider-Verse",
+  "year": 2023,
+  "runtime": 140
+ },
+ {
+  "kind": "movie",
+  "tmdb": 677179,
+  "imdb": "tt11145118",
+  "title": "Creed III",
+  "original": "Creed III",
+  "year": 2023,
+  "runtime": 116
+ },
+ {
+  "kind": "movie",
+  "tmdb": 860,
+  "imdb": "tt0086567",
+  "title": "WarGames",
+  "original": "WarGames",
+  "year": 1983,
+  "runtime": 114
+ },
+ {
+  "kind": "movie",
+  "tmdb": 753342,
+  "imdb": "tt13287846",
+  "title": "Napoléon",
+  "original": "Napoleon",
+  "year": 2023,
+  "runtime": 158
+ },
+ {
+  "kind": "series",
+  "tmdb": 1396,
+  "imdb": "tt0903747",
+  "title": "Breaking Bad",
+  "original": "Breaking Bad",
+  "year": 2008,
+  "runtime": 59,
+  "episodeTitle": "Chute libre"
+ },
+ {
+  "kind": "series",
+  "tmdb": 96677,
+  "imdb": "tt2531336",
+  "title": "Lupin",
+  "original": "Lupin",
+  "year": 2021,
+  "runtime": 47,
+  "episodeTitle": "Chapitre 1"
+ },
+ {
+  "kind": "series",
+  "tmdb": 66732,
+  "imdb": "tt4574334",
+  "title": "Stranger Things",
+  "original": "Stranger Things",
+  "year": 2016,
+  "runtime": 48,
+  "episodeTitle": "Chapitre un : La Disparition de Will Byers"
+ },
+ {
+  "kind": "series",
+  "tmdb": 100088,
+  "imdb": "tt3581920",
+  "title": "The Last of Us",
+  "original": "The Last of Us",
+  "year": 2023,
+  "runtime": 81,
+  "episodeTitle": "Quand tu es perdu dans les ténèbres"
+ },
+ {
+  "kind": "series",
+  "tmdb": 93405,
+  "imdb": "tt10919420",
+  "title": "Squid Game",
+  "original": "오징어 게임",
+  "year": 2021,
+  "runtime": 61,
+  "episodeTitle": "Un, deux, trois, soleil"
+ },
+ {
+  "kind": "series",
+  "tmdb": 94605,
+  "imdb": "tt11126994",
+  "title": "Arcane",
+  "original": "Arcane",
+  "year": 2021,
+  "runtime": 44,
+  "episodeTitle": "Welcome to the playground"
+ },
+ {
+  "kind": "series",
+  "tmdb": 119051,
+  "imdb": "tt13443470",
+  "title": "Mercredi",
+  "original": "Wednesday",
+  "year": 2022,
+  "runtime": 60,
+  "episodeTitle": "Mercredi porte-malheur"
+ },
+ {
+  "kind": "series",
+  "tmdb": 136315,
+  "imdb": "tt14452776",
+  "title": "The Bear",
+  "original": "The Bear",
+  "year": 2022,
+  "runtime": 28,
+  "episodeTitle": "Le Système"
+ },
+ {
+  "kind": "series",
+  "tmdb": 126308,
+  "imdb": "tt2788316",
+  "title": "Shōgun",
+  "original": "Shōgun",
+  "year": 2024,
+  "runtime": 71,
+  "episodeTitle": "L'Anjin"
+ },
+ {
+  "kind": "series",
+  "tmdb": 64165,
+  "imdb": "tt4277922",
+  "title": "Dix pour cent",
+  "original": "Dix pour cent",
+  "year": 2015,
+  "runtime": 55,
+  "episodeTitle": "Cécile"
+ },
+ {
+  "kind": "series",
+  "tmdb": 209867,
+  "imdb": "tt22248376",
+  "title": "Frieren",
+  "original": "葬送のフリーレン",
+  "year": 2023,
+  "runtime": 26,
+  "episodeTitle": "La fin de l'aventure"
+ },
+ {
+  "kind": "series",
+  "tmdb": 37854,
+  "imdb": "tt0388629",
+  "title": "One Piece",
+  "original": "ワンピース",
+  "year": 1999,
+  "runtime": 25,
+  "episodeTitle": "Je suis Luffy ! Celui qui deviendra Roi des Pirates !"
+ },
+ {
+  "kind": "series",
+  "tmdb": 1429,
+  "imdb": "tt2560140",
+  "title": "L'Attaque des Titans",
+  "original": "進撃の巨人",
+  "year": 2013,
+  "runtime": 24,
+  "episodeTitle": "À toi qui vis 2000 ans plus tard"
+ },
+ {
+  "kind": "series",
+  "tmdb": 2316,
+  "imdb": "tt0386676",
+  "title": "The Office",
+  "original": "The Office",
+  "year": 2005,
+  "runtime": 24,
+  "episodeTitle": "La rumeur"
+ },
+ {
+  "kind": "series",
+  "tmdb": 94997,
+  "imdb": "tt11198330",
+  "title": "House of the Dragon",
+  "original": "House of the Dragon",
+  "year": 2022,
+  "runtime": 66,
+  "episodeTitle": "Les héritiers du dragon"
+ }
+]

@@ -5,22 +5,21 @@ import com.lagradost.cloudstream3.utils.ExtractorLink
 import com.lagradost.cloudstream3.utils.ExtractorLinkPlayList
 import com.lagradost.cloudstream4.domain.media.ProviderKey
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.job
-import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
@@ -28,7 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 data class SourceLoadOutcome(val ordinal: Int, val provider: String, val track: String,
-    val status: String, val links: Int, val elapsedMs: Long)
+    val status: String, val links: Int, val elapsedMs: Long, val rejected: Int = 0)
 
 data class CanonicalSources(
     val sources: List<PlaybackSource>,
@@ -36,6 +35,8 @@ data class CanonicalSources(
     val outcomes: List<SourceLoadOutcome>,
     /** Milliseconds from the start until [CanonicalSourceLoader.load]'s `onReady`; null if never signalled. */
     val readyAfterMs: Long? = null,
+    /** Links dropped by stream checks, by reason. */
+    val rejections: Map<String, Int> = emptyMap(),
 ) {
     val links: List<ExtractorLink> get() = sources.map { it.link }
 }
@@ -43,10 +44,14 @@ data class CanonicalSources(
 typealias SourceFetch = suspend (EpisodeSourceBinding, Boolean, (SubtitleFile) -> Unit, (ExtractorLink) -> Unit) -> Boolean?
 
 /**
- * Bounded multi-provider acquisition. Sources are published as soon as they are acquired;
- * [PlaybackPolicy] decides when enough is known to start playback, while acquisition carries on
- * so later, better sources remain available for an automatic upgrade or a fallback.
- * An extension failure never discards other sources.
+ * Bounded multi-provider acquisition with stream checks.
+ *
+ * Every acquired link goes through a priority queue: the most promising links (viewer's language,
+ * reliable provider, high declared quality) are inspected first by a small worker pool, which
+ * measures reachability, manifest resolution/languages and the real duration (HLS) or size. Links
+ * whose content cannot be the requested work are dropped before the player sees them. Inspected
+ * links are published as they pass; once the inspection budget is spent, remaining links are
+ * published unchecked and rank below checked ones. [PlaybackPolicy] decides when to start.
  */
 class CanonicalSourceLoader(
     private val concurrency: Int = 6,
@@ -54,16 +59,20 @@ class CanonicalSourceLoader(
     private val totalTimeoutMs: Long = 30_000,
     private val perProvider: Int = 2,
     private val policy: PlaybackPolicy = PlaybackPolicy(),
-    private val probeStreams: Boolean = true,
+    private val inspectStreams: Boolean = true,
+    private val inspectionWorkers: Int = 4,
+    private val inspectionBudget: Int = 30,
+    private val inspect: suspend (ExtractorLink) -> StreamInspection = { StreamInspector.inspect(it) },
 ) {
     private data class Cached(val links: List<ExtractorLink>, val subtitles: List<SubtitleFile>, val at: Long)
     private class Entry { val mutex = Mutex(); var cached: Cached? = null }
     private data class Key(val binding: EpisodeSourceBinding, val casting: Boolean)
 
+    private class Candidate(val raw: ExtractorLink, val binding: EpisodeSourceBinding, val ordinal: Int, val priority: Double)
+
     companion object {
         private val cache = LinkedHashMap<Key, Entry>(16, .75f, true)
         private const val TTL_MS = 20 * 60 * 1000L
-        private val probes = Semaphore(4)
 
         @Synchronized private fun entry(key: Key): Entry {
             val result = cache.getOrPut(key) { Entry() }
@@ -86,16 +95,27 @@ class CanonicalSourceLoader(
         }
 
         private fun providerKey(binding: EpisodeSourceBinding) = binding.providerId ?: binding.apiName
+
+        /** Order of inspection: language, then reliability, then believable declared quality. */
+        private fun priority(raw: ExtractorLink, binding: EpisodeSourceBinding): Double =
+            SourceRanking.score(PlaybackSources.version(raw.name, binding),
+                SourceRanking.trustedHeight(PlaybackSources.quality(raw), null)) -
+                ProviderHealth.playbackPenalty(providerKey(binding)) +
+                ProviderHealth.stats(providerKey(binding)).successRate
     }
 
     /**
      * @param preference the remembered version choice; it weighs readiness like the player's ranking.
-     * @param onSource each newly acquired unique source (a better-quality duplicate is published again).
+     * @param expectedSeconds catalogue runtime of the movie/episode, for duration checks.
+     * @param episode whether [expectedSeconds] is an episode runtime (looser tolerance).
+     * @param onSource each newly published unique source (a better-quality duplicate is published again).
      * @param onReady called once, when [PlaybackPolicy.shouldStart] holds.
      */
     suspend fun load(
         bindings: List<EpisodeSourceBinding>, clearCache: Boolean, casting: Boolean,
         preference: SourceVersion = SourceVersion.Auto,
+        expectedSeconds: Double? = null,
+        episode: Boolean = false,
         onSource: ((PlaybackSource) -> Unit)? = null,
         onSubtitle: ((SubtitleFile) -> Unit)? = null,
         onReady: (() -> Unit)? = null,
@@ -103,58 +123,116 @@ class CanonicalSourceLoader(
     ): CanonicalSources = withContext(Dispatchers.IO) {
         val startedAt = System.nanoTime()
         val indexed = bindings.distinct().withIndex().toList()
-        // Most reliable/fastest providers first; and one binding of each declared version starts
-        // before the queue is spent on unknown audio.
         val now = System.currentTimeMillis()
+        val viewer = PlaybackSources.viewerLanguage()
+        fun native(binding: EpisodeSourceBinding) = binding.language?.substringBefore('-')?.lowercase()
+            .let { it == null || it == viewer || it == "multi" || it == "mul" || it == "all" }
         // Repeatedly failing providers (often an interactive verification) are a fallback only:
         // they start once the reliable ones are done, and only if nothing is playing yet.
         val (fallbacks, reliable) = indexed.partition { ProviderHealth.stats(providerKey(it.value)).unreliable(now) }
-        val byHealth = reliable.sortedByDescending { ProviderHealth.priority(providerKey(it.value)) }
+        // Providers in the viewer's language first, then the most reliable/fastest; one binding of
+        // each declared version starts before the queue is spent on unknown audio.
+        val byHealth = reliable.sortedWith(compareByDescending<IndexedValue<EpisodeSourceBinding>> { native(it.value) }
+            .thenByDescending { ProviderHealth.priority(providerKey(it.value)) })
         val firsts = byHealth.groupBy { PlaybackSources.version("", it.value) }.values.map { it.first() }
             .sortedByDescending { PlaybackSources.versionRank(PlaybackSources.version("", it.value)) }
         val rest = byHealth.filterNot { it in firsts }
         val ordered = firsts + rest + fallbacks
         val fallbackOrdinals = fallbacks.map { it.index }.toSet()
-        val reliableDone = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val reliableDone = CompletableDeferred<Unit>()
         val reliableRemaining = AtomicInteger(reliable.size)
         if (reliable.isEmpty()) reliableDone.complete(Unit)
         val limiter = ProviderLimiter(concurrency, perProvider)
         val deadline = startedAt + totalTimeoutMs * 1_000_000
 
-        val acquired = linkedMapOf<List<Any?>, PlaybackSource>()
+        val published = linkedMapOf<List<Any?>, PlaybackSource>()
         val subtitles = linkedMapOf<List<Any?>, SubtitleFile>()
-        val pending = AtomicInteger(ordered.size)
+        val rejections = linkedMapOf<String, Int>()
+        val rejectedPerOrdinal = mutableMapOf<Int, Int>()
+        val pendingBindings = AtomicInteger(ordered.size)
+        val nativePending = AtomicInteger(ordered.count { native(it.value) && it.index !in fallbackOrdinals })
         val ready = AtomicBoolean(onReady == null)
-        var firstSourceAt = 0L
         var readyAfterMs: Long? = null
         val scope = this
 
-        fun bestScore(): Double? = synchronized(acquired) {
-            acquired.values.maxOfOrNull { PlaybackVerification.score(it.link, preference) }
+        // Inspection queue: most promising first; workers stop when acquisition is over and it is empty.
+        val queue = java.util.PriorityQueue<Candidate>(compareByDescending { it.priority })
+        val queued = AtomicInteger(0)
+        val nativeQueued = AtomicInteger(0)
+        val inspections = AtomicInteger(0)
+        val wake = Channel<Unit>(Channel.CONFLATED)
+        val acquisitionOver = AtomicBoolean(false)
+
+        fun best(): PlaybackSource? = synchronized(published) {
+            published.values.maxByOrNull { SourceRanking.score(it.metadata, PlaybackSources.quality(it.link), preference) }
         }
         fun checkReady() {
             if (ready.get()) return
-            val since = synchronized(acquired) { if (firstSourceAt == 0L) 0L else (System.nanoTime() - firstSourceAt) / 1_000_000 }
-            if (policy.shouldStart(bestScore(), since, pending.get()) && ready.compareAndSet(false, true)) {
-                readyAfterMs = (System.nanoTime() - startedAt) / 1_000_000
+            val top = best()
+            val elapsed = (System.nanoTime() - startedAt) / 1_000_000
+            val waiting = pendingBindings.get() + queued.get()
+            val nativeWaiting = nativePending.get() + nativeQueued.get()
+            val score = top?.let { SourceRanking.score(it.metadata, PlaybackSources.quality(it.link), preference) }
+            if (policy.shouldStart(top?.metadata, score, elapsed, nativeWaiting, waiting) && ready.compareAndSet(false, true)) {
+                readyAfterMs = elapsed
                 onReady?.invoke()
             }
         }
-        fun publish(raw: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int, probe: StreamProbe?) {
-            val copy = PlaybackSources.copy(raw, binding, ordinal, probe)
+        fun publish(candidate: Candidate, probe: StreamProbe?, check: SourceCheck, duration: Double?) {
+            val copy = PlaybackSources.copy(candidate.raw, candidate.binding, candidate.ordinal, probe, check, duration)
             val source = PlaybackSource(copy, PlaybackSources.metadata(copy)!!)
             val key = PlaybackSources.key(copy)
-            val isNew = synchronized(acquired) {
-                val previous = acquired[key]
-                (previous == null || source.quality > previous.quality).also {
-                    if (it) acquired[key] = source
-                    if (firstSourceAt == 0L) firstSourceAt = System.nanoTime()
-                }
+            val isNew = synchronized(published) {
+                val previous = published[key]
+                val better = previous == null || source.score > previous.score
+                if (better) published[key] = source
+                better
             }
             if (isNew) onSource?.invoke(source)
             checkReady()
         }
+        fun reject(candidate: Candidate, reason: String) {
+            synchronized(rejections) {
+                val key = reason.substringBefore(' ')
+                rejections[key] = (rejections[key] ?: 0) + 1
+                rejectedPerOrdinal[candidate.ordinal] = (rejectedPerOrdinal[candidate.ordinal] ?: 0) + 1
+            }
+        }
+        fun enqueue(raw: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int) {
+            val candidate = Candidate(raw, binding, ordinal, priority(raw, binding))
+            synchronized(queue) { queue += candidate }
+            queued.incrementAndGet()
+            if (native(binding)) nativeQueued.incrementAndGet()
+            wake.trySend(Unit)
+        }
 
+        val workers: List<Job> = (1..inspectionWorkers).map {
+            launch {
+                while (isActive) {
+                    val next = synchronized(queue) { queue.poll() }
+                    if (next == null) {
+                        if (acquisitionOver.get()) break
+                        withTimeoutOrNull(200) { wake.receive() }
+                        continue
+                    }
+                    try {
+                        val inspectable = inspectStreams && next.raw !is ExtractorLinkPlayList
+                        if (inspectable && inspections.incrementAndGet() <= inspectionBudget) {
+                            val inspection = inspect(next.raw)
+                            val verdict = StreamChecks.verdict(inspection, expectedSeconds, episode)
+                            if (verdict.rejected) reject(next, verdict.reason ?: "rejected")
+                            else publish(next, inspection.probe.takeIf { inspection.reachable }, verdict.check!!, inspection.durationSeconds)
+                        } else publish(next, null, SourceCheck.Unchecked, null)
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { publish(next, null, SourceCheck.Unchecked, null) }
+                    finally {
+                        queued.decrementAndGet()
+                        if (native(next.binding)) nativeQueued.decrementAndGet()
+                        checkReady()
+                    }
+                }
+            }
+        }
         val ticker: Job? = if (onReady == null) null else launch {
             while (isActive && !ready.get()) { delay(100); checkReady() }
         }
@@ -164,16 +242,11 @@ class CanonicalSourceLoader(
                 val started = System.nanoTime()
                 val raw = mutableListOf<ExtractorLink>()
                 val rawSubtitles = mutableListOf<SubtitleFile>()
-                val probesOfBinding = mutableListOf<Job>()
                 val gate = AtomicBoolean(false)
                 var status = "Timeout"
                 fun accept(link: ExtractorLink) {
                     synchronized(raw) { raw += link }
-                    if (probeStreams && StreamProbes.worthProbing(link)) {
-                        synchronized(probesOfBinding) {
-                            probesOfBinding += scope.launch { publish(link, binding, ordinal, probes.withPermit { StreamProbes.probe(link) }) }
-                        }
-                    } else publish(link, binding, ordinal, null)
+                    enqueue(link, binding, ordinal)
                 }
                 fun acceptSubtitle(file: SubtitleFile) {
                     val isNew = synchronized(subtitles) {
@@ -186,7 +259,9 @@ class CanonicalSourceLoader(
                 val fallback = ordinal in fallbackOrdinals
                 if (fallback) {
                     withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { reliableDone.await() }
-                    if ((onReady != null && ready.get()) || synchronized(acquired) { acquired.isNotEmpty() }) status = "Skipped"
+                    // Wait for the reliable providers' links to be checked too.
+                    while (queued.get() > 0 && System.nanoTime() < deadline) delay(100)
+                    if ((onReady != null && ready.get()) || synchronized(published) { published.isNotEmpty() }) status = "Skipped"
                 }
                 if (status != "Skipped") try {
                     withTimeoutOrNull(totalTimeoutMs) {
@@ -239,31 +314,38 @@ class CanonicalSourceLoader(
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { status = "Failure" }
                 finally { gate.set(false) }
-                // Manifest probes of this binding are bounded by their own timeout and the deadline.
-                withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) {
-                    synchronized(probesOfBinding) { probesOfBinding.toList() }.joinAll()
-                }
                 ensureActive()
                 val elapsed = (System.nanoTime() - started) / 1_000_000
                 val count = synchronized(raw) { raw.size }
-                if (!fallback && reliableRemaining.decrementAndGet() == 0) reliableDone.complete(Unit)
                 if (status != "Cached" && status != "MissingProvider" && status != "Skipped") {
                     ProviderHealth.record(providerKey(binding), success = count > 0, timeout = status == "Timeout", elapsedMs = elapsed)
                 }
-                pending.decrementAndGet()
+                if (!fallback && reliableRemaining.decrementAndGet() == 0) reliableDone.complete(Unit)
+                pendingBindings.decrementAndGet()
+                if (native(binding) && !fallback) nativePending.decrementAndGet()
                 checkReady()
-                SourceLoadOutcome(ordinal, binding.apiName, binding.track, status, count, elapsed)
-            } }.awaitAll().sortedBy { it.ordinal }
+                Triple(ordinal, binding, SourceLoadOutcome(ordinal, binding.apiName, binding.track, status, count, elapsed))
+            } }.awaitAll()
         } finally {
-            ticker?.cancel()
+            acquisitionOver.set(true)
+            wake.trySend(Unit)
         }
+        // Let the queue drain within the deadline; what is left is published unchecked.
+        withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { workers.forEach { it.join() } }
+        workers.forEach { it.cancel() }
+        synchronized(queue) { generateSequence { queue.poll() }.toList() }.forEach { publish(it, null, SourceCheck.Unchecked, null) }
+        ticker?.cancel()
         ensureActive()
+        checkReady()
         ProviderHealth.persist()
-        val sources = synchronized(acquired) { acquired.values.sortedBy { it.metadata.ordinal } }
-        CanonicalSources(sources, synchronized(subtitles) { subtitles.values.toList() }, results, readyAfterMs)
+        val outcomes = results.map { (ordinal, _, outcome) -> outcome.copy(rejected = synchronized(rejections) { rejectedPerOrdinal[ordinal] ?: 0 }) }
+            .sortedBy { it.ordinal }
+        val sources = synchronized(published) { published.values.sortedBy { it.metadata.ordinal } }
+        CanonicalSources(sources, synchronized(subtitles) { subtitles.values.toList() }, outcomes, readyAfterMs,
+            synchronized(rejections) { rejections.toMap() })
     }
 
-    /** Fills the cache for [bindings] without publishing anything; used before the user presses play. */
+    /** Fills the cache for [bindings] without publishing anything. */
     suspend fun prefetch(bindings: List<EpisodeSourceBinding>, fetch: SourceFetch = Companion::fetch) {
         val missing = bindings.distinct().filterNot { isCached(it) }
         if (missing.isNotEmpty()) load(missing, clearCache = false, casting = false, fetch = fetch)

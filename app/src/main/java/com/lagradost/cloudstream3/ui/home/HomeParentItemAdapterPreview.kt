@@ -74,10 +74,10 @@ class HomeParentItemAdapterPreview(
     }, expandCallback = {
         viewModel.expand(it)
     }) {
-    // Discovery shelves lead; personal history and bookmarks remain available below them.
+    // Like the upstream home: featured works, then resume/bookmarks, then the content shelves.
     private val discovery = viewModel.aggregated
-    override val headers get() = if (discovery) 0 else 1
-    override val footers get() = if (discovery) 1 else 0
+    override val headers get() = 1
+    override val footers get() = 0
     override fun childAdapterId(item: HomeViewModel.ExpandableHomepageList, position: Int) =
         if (discovery) id + item.list.name.hashCode() else super.childAdapterId(item, position)
     override fun onCreateFooter(parent: ViewGroup) = onCreateHeader(parent)

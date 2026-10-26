@@ -14,6 +14,9 @@ data class ProviderStats(
     /** Links of this provider that played, or failed/turned out to be another video, in the player. */
     val playbackSuccesses: Int = 0,
     val playbackFailures: Int = 0,
+    /** Consecutive searches that returned nothing or failed, and when the last one ran. */
+    val emptySearches: Int = 0,
+    val lastSearch: Long = 0,
 ) {
     /** Up to two quality steps for a provider whose links keep failing in the player. */
     @get:JsonIgnore val playbackPenalty: Double get() =
@@ -83,6 +86,25 @@ object ProviderHealth {
     }
 
     fun playbackPenalty(provider: String): Double = stats(provider).playbackPenalty
+
+    /** A search that found something resets the streak; persisted with the next [persist]. */
+    fun recordSearch(provider: String, found: Boolean) = synchronized(this) {
+        val all = state()
+        val stats = all[provider] ?: ProviderStats()
+        all[provider] = stats.copy(emptySearches = if (found) 0 else stats.emptySearches + 1, lastSearch = System.currentTimeMillis())
+    }
+
+    /**
+     * A provider whose last [DEAD_SEARCH_STREAK] searches all came back empty (broken site, changed
+     * domain) is skipped for [SEARCH_RETRY_MS], then tried again: an extension update can fix it.
+     */
+    fun searchUsable(provider: String, now: Long = System.currentTimeMillis()): Boolean {
+        val stats = stats(provider)
+        return stats.emptySearches < DEAD_SEARCH_STREAK || now - stats.lastSearch > SEARCH_RETRY_MS
+    }
+
+    const val DEAD_SEARCH_STREAK = 12
+    const val SEARCH_RETRY_MS = 12 * 60 * 60 * 1000L
 
     fun persist() {
         val snapshot = synchronized(this) { state().toMap() }

@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger
 @Config(application = Application::class, sdk = [35])
 @ConscryptMode(ConscryptMode.Mode.OFF)
 class CanonicalSourcesTest {
+    // Fixtures are French providers seen by a French-speaking viewer, whatever the build machine's locale.
+    init { com.lagradost.cloudstream4.aggregation.AggregationPlatform.metadataLanguage = { "fr-FR" } }
     companion object { private val counter = AtomicInteger() }
     private fun binding(track: String = "None", language: String = "fr") =
         EpisodeSourceBinding("Fixture${counter.incrementAndGet()}", "https://fixture.invalid", "/show", "opaque", track, language)

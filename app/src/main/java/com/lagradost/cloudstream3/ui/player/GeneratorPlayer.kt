@@ -1522,6 +1522,7 @@ class GeneratorPlayer : FullScreenPlayer() {
                             SourceVersion.VF -> "VF"
                             SourceVersion.VOST -> "VOST"
                             SourceVersion.Unknown -> ctx.getString(R.string.canonical_unspecified_audio)
+                            SourceVersion.VO -> "VO"
                         }
                     })
                     choiceMode = AbsListView.CHOICE_MODE_SINGLE
@@ -1755,7 +1756,11 @@ class GeneratorPlayer : FullScreenPlayer() {
         if (userChoseSource) return note("user choice")
         val current = currentSelectedLink ?: return note("nothing playing")
         val state = viewModel.state
+        val currentVersion = PlaybackSources.version(current.first)
+        // Only to a measured stream, and never from the viewer's language to a foreign fallback.
         val candidates = ranking.filter { it.shouldUseLink && it.link != current && it.link.first != null &&
+            PlaybackSources.metadata(it.link.first)?.check == com.lagradost.cloudstream4.aggregation.SourceCheck.Verified &&
+            (PlaybackSources.version(it.link.first) != SourceVersion.VO || currentVersion == SourceVersion.VO) &&
             canonicalPolicy.shouldUpgrade(state.canonicalScore(current), state.canonicalScore(it.link)) }.take(3)
         if (candidates.isEmpty()) return note("no clearly better source")
         upgradeJob?.cancel()

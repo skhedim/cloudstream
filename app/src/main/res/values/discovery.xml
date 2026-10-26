@@ -4,6 +4,8 @@
     <string name="aggregate_home_des">Combine recent additions across your enabled extensions.</string>
     <string name="home_news">Discover</string>
     <string name="home_recent_additions">Latest additions</string>
+    <string name="home_top10">Top 10 this week</string>
+    <string name="home_trending">Trending now</string>
     <string name="home_for_you">For you · based on your history</string>
     <string name="home_for_you_movies">Films for you</string>
     <string name="home_for_you_series">Series for you</string>

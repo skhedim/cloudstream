@@ -43,6 +43,25 @@ class RepoLinkGenerator(
     /** Called with the episode offset when enough canonical sources are known to start playback. */
     var onCanonicalReady: ((Int) -> Unit)? = null
 
+    /**
+     * Catalogue runtime for stream checks: TMDB's (movie or this episode), else the movie runtime
+     * the detail page shows. Unknown for episodes without a TMDB show ID.
+     */
+    private suspend fun expectedRuntime(episode: ResultEpisode): Pair<Double?, Boolean> {
+        val response = page
+        val tmdb = response?.let { runCatching { with(LoadResponse) { it.getTMDbId() } }.getOrNull() }
+        if (response is com.lagradost.cloudstream3.MovieLoadResponse || episode.season == null) {
+            val minutes = tmdb?.let { com.lagradost.cloudstream4.aggregation.RuntimeCatalog.movieMinutes(it) }
+                ?: response?.duration?.takeIf { it in 20..400 }
+            return minutes?.let { it * 60.0 } to false
+        }
+        val season = episode.season ?: return null to true
+        val minutes = tmdb?.let {
+            com.lagradost.cloudstream4.aggregation.RuntimeCatalog.episodeMinutes(it, season, episode.episode)
+        }
+        return minutes?.let { it * 60.0 } to true
+    }
+
     override val hasCache = true
     override val canSkipLoading = true
     override fun getId(index: Int): Int? = videos.getOrNull(index)?.id
@@ -65,8 +84,9 @@ class RepoLinkGenerator(
             // Sources are published as they arrive; the player starts on onCanonicalReady and may
             // upgrade once acquisition has finished.
             val subtitleNames = ConcurrentHashMap<String, AtomicInteger>()
+            val (expectedSeconds, isEpisode) = expectedRuntime(current)
             val sources = CanonicalSourceLoader().load(current.sourceBindings, clearCache, isCasting,
-                preference = canonicalPreference,
+                preference = canonicalPreference, expectedSeconds = expectedSeconds, episode = isEpisode,
                 onSource = { source -> if (source.link.type in sourceTypes) callback(source.link to null) },
                 onSubtitle = { file ->
                     val data = PlayerSubtitleHelper.getSubtitleData(file)

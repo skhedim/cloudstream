@@ -56,9 +56,15 @@ import com.lagradost.cloudstream3.utils.DataStoreHelper.getResultWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
 import com.lagradost.cloudstream3.utils.downloader.DownloadObjects
 import com.lagradost.cloudstream3.ui.home.aggregation.*
+import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream4.AppSettings
 import com.lagradost.cloudstream3.R
+import com.lagradost.cloudstream3.newMovieLoadResponse
+import com.lagradost.cloudstream3.newTvSeriesLoadResponse
+import com.lagradost.cloudstream3.Score
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -156,6 +162,9 @@ class HomeViewModel : ViewModel() {
     private data class RecommendationSnapshot(val plan: RecommendationPlan, val history: Set<HistorySignal>)
     private var discoveryHistory: Set<HistorySignal>? = null
     private val recommendationsLoader = PersonalizedRecommendationsLoader(related = PersonalizedRecommendationCatalog::related)
+    private var discoveryNative: Set<ProviderKey>? = null
+    @Volatile private var discoveryTrending: Map<com.lagradost.cloudstream4.domain.media.ExternalMediaId, Int> = emptyMap()
+    private var heroGeneration = -1L
 
     private suspend fun recommendationPlan(repos: List<APIRepository>): RecommendationSnapshot = withContext(Dispatchers.IO) {
         val signals = mutableSetOf<HistorySignal>()
@@ -209,7 +218,12 @@ class HomeViewModel : ViewModel() {
         }
             .distinctBy { it.name to it.mainUrl }.sortedWith(compareBy<MainAPI> { it.name }.thenBy { it.mainUrl })
             .map(::APIRepository)
-        val repos = allRepos.filter { it.hasMainPage }
+        // Home feeds come from providers in the viewer's language; other catalogues (often foreign
+        // trending lists) stay available for search and as playback fallbacks.
+        val viewer = com.lagradost.cloudstream4.aggregation.PlaybackSources.viewerLanguage()
+        fun native(api: MainAPI) = api.lang.substringBefore('-').lowercase().let { it == viewer || it == "multi" || it == "mul" || it == "all" }
+        val repos = allRepos.filter { it.hasMainPage && native(it.api) }.ifEmpty { allRepos.filter { it.hasMainPage } }
+        discoveryNative = allRepos.filter { native(it.api) }.map { ProviderKey(it.name, it.mainUrl) }.toSet().takeIf { it.isNotEmpty() }
         val identities = allRepos.map { Triple(it.name, it.mainUrl, it.api.javaClass.name) }
         val snapshot = recommendationPlan(allRepos)
         val plan = snapshot.plan
@@ -255,6 +269,8 @@ class HomeViewModel : ViewModel() {
                     val attempts = mutableListOf<Map<String, Any?>>()
                     val loaded = recommendationsLoader.load(account, plan.seeds, forceReload) { source ->
                         val target = allRepos.firstOrNull { it.name == source.binding.provider.name && it.mainUrl == source.binding.provider.mainUrl }
+                            // Recommendations of foreign catalogues lead to works without sources in the viewer's language.
+                            ?.takeIf { discoveryNative == null || native(it.api) }
                         val response = (target?.load(source.binding.url) as? Resource.Success)?.value
                         val seed = plan.seeds.firstOrNull { source in it.sources }
                         val accepted = response != null && seed?.accepts(source, response) == true
@@ -275,6 +291,16 @@ class HomeViewModel : ViewModel() {
                         discoveryHistory = updated.history
                         suggestions = loaded
                         publishDiscovery(projector, latestResults, finishedCount, repos.size, generation, account, suggestions, personalization, pager)
+                    }
+                }
+                launch(Dispatchers.IO) {
+                    val ranks = com.lagradost.cloudstream4.aggregation.DiscoveryCatalog.trendingRanks()
+                    if (ranks.isNotEmpty() && ranks != discoveryTrending) {
+                        discoveryTrending = ranks
+                        publication.withLock {
+                            if (generation == discoveryGeneration) publishDiscovery(projector, latestResults, finishedCount,
+                                repos.size, generation, account, suggestions, personalization, pager)
+                        }
                     }
                 }
                 if (repos.isEmpty()) publish(emptyList(), 0)
@@ -325,7 +351,8 @@ class HomeViewModel : ViewModel() {
                 feed.copy(sections = feed.sections.map { section ->
                     ctx.filterHomePageListByFilmQuality(section.copy(list = section.list.filter(CatalogPreferences.read(ctx)::normalItem)))
                 })
-            }, suggestions.map { batch -> batch.copy(items = ctx.filterSearchResultByFilmQuality(batch.items.filter(CatalogPreferences.read(ctx)::normalItem))) }, plan.excluded)
+            }, suggestions.map { batch -> batch.copy(items = ctx.filterSearchResultByFilmQuality(batch.items.filter(CatalogPreferences.read(ctx)::normalItem))) },
+                plan.excluded, discoveryTrending, discoveryNative)
         }
         withContext(Dispatchers.Main.immediate) {
             ensureActive()
@@ -339,6 +366,8 @@ class HomeViewModel : ViewModel() {
             }
             expandable.clear(); expandable.putAll(mapped)
             _page.value = Resource.Success(mapped)
+            val featured = rows.firstOrNull { it.shelf == HomeShelf.Top10 }?.cards
+            if (featured != null && finished >= requested) buildHero(featured, generation)
             val count = rows.flatMap { it.cards }.distinctBy { it.media.id }.size
             _discoveryStatus.value = when {
                 finished < requested -> ctx.getString(R.string.home_updating_news)
@@ -364,6 +393,52 @@ class HomeViewModel : ViewModel() {
                     runCatching { java.io.File(ctx.cacheDir, "aggregated-home.json").writeText(org.json.JSONObject(report).toString(2)) }
                 }
             }
+        }
+    }
+
+    /**
+     * Featured works for the home hero: this week's most watched available works, with TMDB's
+     * backdrop, logo and synopsis. Opening one goes through its canonical context.
+     */
+    private fun buildHero(cards: List<AggregatedSearchResponse>, generation: Long) {
+        if (heroGeneration == generation) return
+        heroGeneration = generation
+        viewModelScope.launch(Dispatchers.IO) {
+            val picks = cards.mapNotNull { card ->
+                card.media.externalIds.firstOrNull { it.namespace == com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbMovie ||
+                    it.namespace == com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbTv }?.let { card to it }
+            }.take(8)
+            val highlights = coroutineScope {
+                picks.map { (card, id) -> async { com.lagradost.cloudstream4.aggregation.DiscoveryCatalog.highlight(id)?.let { card to it } } }
+                    .awaitAll().filterNotNull().filter { it.second.backdropUrl != null }.take(6)
+            }
+            val responses = highlights.mapNotNull { (card, highlight) -> runCatching { heroResponse(card, highlight) }.getOrNull() }
+            if (generation == discoveryGeneration && responses.isNotEmpty()) {
+                previewResponses.clear(); previewResponses.addAll(responses)
+                _preview.postValue(Resource.Success(false to responses))
+            }
+        }
+    }
+
+    private suspend fun heroResponse(card: AggregatedSearchResponse,
+        highlight: com.lagradost.cloudstream4.aggregation.Highlight): LoadResponse? {
+        val representative = card.representative
+        val api = apis.withLock { apis.firstOrNull { it.name == representative.apiName } } ?: return null
+        // Clicking the hero opens the page by provider URL; the stored context makes it canonical.
+        com.lagradost.cloudstream4.aggregation.CanonicalDetailStore.remember(
+            com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest.from(card.media, card.name))
+        val movie = com.lagradost.cloudstream4.domain.media.MediaAggregator.family(card.media.kind) == "movie"
+        val response = if (movie) api.newMovieLoadResponse(highlight.title, representative.url, TvType.Movie, representative.url)
+            else api.newTvSeriesLoadResponse(highlight.title, representative.url, TvType.TvSeries, emptyList())
+        return response.apply {
+            posterUrl = highlight.posterUrl ?: representative.posterUrl
+            backgroundPosterUrl = highlight.backdropUrl
+            logoUrl = highlight.logoUrl
+            plot = highlight.overview
+            tags = highlight.genres
+            year = highlight.year ?: card.media.year
+            duration = highlight.runtimeMinutes
+            score = Score.from(highlight.rating, 10)
         }
     }
 

@@ -5,7 +5,23 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkPlayList
 import com.lagradost.cloudstream3.utils.Qualities
 import java.util.WeakHashMap
 
-enum class SourceVersion { Auto, VF, VOST, Unknown }
+/**
+ * Audio/subtitle version as far as evidence goes, for a French-speaking viewer:
+ * - [VF] French audio, [VOST] French subtitles (labels, French-provider tracks, manifests);
+ * - [Unknown] a provider in the viewer's language that does not say (usually French audio);
+ * - [VO] a provider in another language that does not say: original audio, no French promise.
+ */
+enum class SourceVersion { Auto, VF, VOST, Unknown, VO }
+
+/** How much the engine checked a stream before offering it. */
+enum class SourceCheck {
+    /** Reachable and its content length fits the work (HLS duration or file size). */
+    Verified,
+    /** Reachable, but nothing about its content could be measured. */
+    Alive,
+    /** Not inspected (budget, unsupported type, inspection timeout). */
+    Unchecked,
+}
 
 data class PlaybackSourceMetadata(
     val version: SourceVersion,
@@ -14,13 +30,17 @@ data class PlaybackSourceMetadata(
     val providerId: String? = null,
     /** Set when the quality/version came from the stream manifest rather than the extension. */
     val probed: Boolean = false,
+    val check: SourceCheck = SourceCheck.Unchecked,
+    /** Resolution read from the manifest, when there is one. */
+    val verifiedHeight: Int? = null,
+    val durationSeconds: Double? = null,
 )
 
 /** An app-owned playable copy of an extension link and what the engine knows about it. */
 data class PlaybackSource(val link: ExtractorLink, val metadata: PlaybackSourceMetadata) {
     val version: SourceVersion get() = metadata.version
     val quality: Int get() = PlaybackSources.quality(link)
-    val score: Double get() = SourceRanking.score(version, quality)
+    val score: Double get() = SourceRanking.score(metadata, quality)
 }
 
 /**
@@ -31,21 +51,32 @@ data class PlaybackSource(val link: ExtractorLink, val metadata: PlaybackSourceM
  */
 object PlaybackSources {
     private val metadata = WeakHashMap<ExtractorLink, PlaybackSourceMetadata>()
-    private val vf = Regex("(?<![\\p{L}\\p{N}])(?:vf|vff|vfq|french|truefrench)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
-    private val vost = Regex("(?<![\\p{L}\\p{N}])(?:vostfr|vost|subbed|sub)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+    private val vf = Regex("(?<![\\p{L}\\p{N}])(?:vf|vff|vfq|vfi|french|truefrench|français|francais)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+    private val vostfr = Regex("(?<![\\p{L}\\p{N}])(?:vostfr|vost)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+    private val subbed = Regex("(?<![\\p{L}\\p{N}])(?:subbed|sub)(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+
+    /** The viewer's language, e.g. `fr`. */
+    fun viewerLanguage(): String = AggregationPlatform.metadataLanguage().substringBefore('-').lowercase()
+
+    private fun nativeProvider(binding: EpisodeSourceBinding?): Boolean? {
+        val language = binding?.language?.substringBefore('-')?.lowercase()?.takeIf { it.isNotBlank() } ?: return null
+        if (language == "multi" || language == "mul" || language == "all") return true
+        return language == viewerLanguage()
+    }
 
     fun version(label: String, binding: EpisodeSourceBinding? = null): SourceVersion {
         val french = vf.containsMatchIn(label)
-        val original = vost.containsMatchIn(label)
-        if (french && original) return SourceVersion.Unknown
+        val original = vostfr.containsMatchIn(label)
+        val native = nativeProvider(binding)
+        if (french && original) return if (native == false) SourceVersion.VO else SourceVersion.Unknown
         if (french) return SourceVersion.VF
         if (original) return SourceVersion.VOST
-        // A dub/sub track only proves VF/VOST(FR) on a French-language provider; elsewhere
-        // "Subbed" is usually original audio with English subtitles.
-        val frenchProvider = binding?.language?.substringBefore('-') == "fr"
+        // Generic dub/sub markers only prove VF/VOST(FR) on a provider in the viewer's language;
+        // elsewhere "Subbed" is original audio with subtitles in that provider's language.
         return when {
-            binding?.track == "Subbed" && frenchProvider -> SourceVersion.VOST
-            binding?.track == "Dubbed" && frenchProvider -> SourceVersion.VF
+            native == true && (binding?.track == "Subbed" || subbed.containsMatchIn(label)) -> SourceVersion.VOST
+            native == true && binding?.track == "Dubbed" -> SourceVersion.VF
+            native == false -> SourceVersion.VO
             else -> SourceVersion.Unknown
         }
     }
@@ -55,16 +86,26 @@ object PlaybackSources {
         ?: version(link?.name.orEmpty())
 
     /**
-     * @param probe manifest evidence; it only fills what the extension left unknown.
+     * @param inspection measurements of the stream; they only fill what the extension left unknown.
      */
     @Suppress("DEPRECATION")
-    fun copy(link: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int, probe: StreamProbe? = null): ExtractorLink {
+    fun copy(
+        link: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int,
+        probe: StreamProbe? = null, check: SourceCheck = SourceCheck.Unchecked, durationSeconds: Double? = null,
+    ): ExtractorLink {
         val labelled = version(link.name, binding)
-        val version = if (labelled == SourceVersion.Unknown) probe?.version ?: labelled else labelled
-        val quality = if (quality(link) == 0) probe?.height ?: link.quality else link.quality
+        val probedVersion = probe?.version
+        val version = when {
+            probedVersion == null -> labelled
+            labelled == SourceVersion.Unknown || labelled == SourceVersion.VO -> probedVersion
+            else -> labelled
+        }
+        val verifiedHeight = probe?.height
+        val quality = verifiedHeight ?: link.quality
         val label = when (version) {
             SourceVersion.VF -> "VF"
             SourceVersion.VOST -> "VOST"
+            SourceVersion.VO -> "VO"
             else -> "Audio ?"
         }
         val name = "$label · ${link.name} · ${binding.apiName}"
@@ -74,7 +115,8 @@ object PlaybackSources {
             link.headers.toMap(), link.extractorData, link.type, link.audioTracks.toList())
         val probed = probe != null && (version != labelled || quality != link.quality)
         synchronized(this) {
-            metadata[copy] = PlaybackSourceMetadata(version, binding.apiName, ordinal, binding.providerId, probed)
+            metadata[copy] = PlaybackSourceMetadata(version, binding.apiName, ordinal, binding.providerId, probed,
+                check, verifiedHeight, durationSeconds)
         }
         return copy
     }
@@ -83,9 +125,10 @@ object PlaybackSources {
     fun quality(link: ExtractorLink?): Int = link?.quality?.takeIf { it != Qualities.Unknown.value && it in 1..4320 } ?: 0
 
     fun versionRank(version: SourceVersion): Int = when (version) {
-        SourceVersion.VF -> 3
-        SourceVersion.VOST -> 2
-        SourceVersion.Unknown -> 1
+        SourceVersion.VF -> 4
+        SourceVersion.VOST -> 3
+        SourceVersion.Unknown -> 2
+        SourceVersion.VO -> 1
         SourceVersion.Auto -> 0
     }
 
