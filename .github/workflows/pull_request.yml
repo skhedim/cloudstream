@@ -19,11 +19,13 @@ jobs:
           java-version: 17
       - uses: android-actions/setup-android@v3
         with:
+          cmdline-tools-version: "15859902" # SDK command-line tools 22.0
           packages: platform-tools
           log-accepted-android-sdk-licenses: false
       - name: Install Android platform
         run: |
           sdk_version=$(sed -n 's/^compileSdk = "\([0-9]*\)"/\1/p' gradle/libs.versions.toml)
+          if (( sdk_version >= 37 )); then sdk_version="$sdk_version.0"; fi
           sdkmanager "platforms;android-$sdk_version" 'build-tools;36.0.0'
       - uses: gradle/actions/setup-gradle@v5
       - name: Configure runner memory
