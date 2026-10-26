@@ -35,9 +35,13 @@ object StreamInspector {
     private fun resolve(base: String, relative: String): String =
         runCatching { URI(base).resolve(relative.trim()).toString() }.getOrDefault(relative.trim())
 
-    private suspend fun text(url: String, headers: Map<String, String>, timeoutMs: Long, maxBytes: Int): Pair<Int, String>? {
+    /** HTTP status, body (BOM removed) and whether the body was cut at [maxBytes]. */
+    private data class Body(val code: Int, val text: String, val truncated: Boolean)
+
+    private suspend fun text(url: String, headers: Map<String, String>, timeoutMs: Long, maxBytes: Int): Body {
         val response = app.get(url, headers = headers, timeout = timeoutMs / 1000 + 1)
         val code = response.code
+        var truncated = false
         val body = response.body.use { body ->
             val input = body.byteStream()
             val buffer = ByteArray(maxBytes)
@@ -47,10 +51,14 @@ object StreamInspector {
                 if (read < 0) break
                 size += read
             }
+            if (size == buffer.size && input.read() >= 0) truncated = true
             String(buffer, 0, size, Charsets.UTF_8)
         }
-        return code to body
+        return Body(code, body.trimStart('\uFEFF'), truncated)
     }
+
+    /** A partial playlist would understate the duration: only a complete one is measured. */
+    private fun duration(body: Body): Double? = if (body.truncated) null else mediaPlaylistSeconds(body.text)
 
     /** Sum of #EXTINF durations; null when the text is not a media playlist. */
     fun mediaPlaylistSeconds(text: String): Double? {
@@ -95,13 +103,15 @@ object StreamInspector {
             link.type == ExtractorLinkType.DASH) return StreamInspection(false, error = "type ${link.type}")
         val headers = link.getAllHeaders()
         if (link.type == ExtractorLinkType.M3U8) {
-            val (code, master) = text(link.url, headers, timeoutMs, 512_000) ?: return StreamInspection(false)
+            val first = text(link.url, headers, timeoutMs, 4_000_000)
+            val code = first.code
             if (code !in 200..299) return StreamInspection(false, code)
+            val master = first.text
             if (!master.trimStart().startsWith("#EXTM3U")) return StreamInspection(false, code, error = "not-hls")
             val probe = StreamProbe.parse(master)
-            val seconds = mediaPlaylistSeconds(master) ?: firstVariant(master, link.url)?.let { variant ->
-                text(variant, headers, timeoutMs, 2_000_000)?.takeIf { it.first in 200..299 }?.second?.let(::mediaPlaylistSeconds)
-            }
+            val variant = firstVariant(master, link.url)
+            val seconds = if (variant == null) duration(first) else
+                text(variant, headers, timeoutMs, 4_000_000).takeIf { it.code in 200..299 }?.let(::duration)
             return StreamInspection(true, code, probe?.height, probe?.audioLanguages.orEmpty(),
                 probe?.subtitleLanguages.orEmpty(), seconds)
         }

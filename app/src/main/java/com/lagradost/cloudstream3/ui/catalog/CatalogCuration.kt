@@ -14,15 +14,22 @@ object CatalogCuration {
     private val excludedOrigins = listOf("rvrbeast76allforurepo", "errorcode26ayucloudstreamgames", "flummoxgamerflummoxrepo")
     private val utilities = setOf("megaprovider", "m3uplayer", "m3uplaylistplayerprovider", "jellyfin", "stremioaddon", "stremiox",
         "simpmusic", "smarttube", "skillshareprovider", "goldenaudiobook", "goldenaudiobooks", "librivoxaudiobook", "comix")
+    /**
+     * Recommended extensions, from the provider survey (ProviderSurveyInstrumentedTest, 47 TMDB
+     * titles, 2026-10-26): every playable link checked for reachability and real duration.
+     * - Movix, Frembed (yorik100): ~100 % of titles playable, mostly 720p+; Xalaflix ~72 %;
+     *   FsMirrorLol ~64 % (mostly 360p, explicit VF/VOST).
+     * - AfterDark, Frembed FR (mouradchaouche): no playable links, but they find every title with
+     *   TMDB IDs: kept for matching and the home catalogue; the engine never waits on their links.
+     * - CineStream: the original-version fallback.
+     * Coflix, Flemmix and FrenchAnime found nothing in the survey and are no longer recommended.
+     */
     private val reviewed = mapOf(
         "cinestream" to listOf("saurabhkaperwancsx"),
         "movix" to listOf("kraptor123cskarma"),
-        "coflix" to listOf("phisher98cloudstreamextensionsphisher"),
         "frembed" to listOf("yorik100cloudstream", "mouradchaouchecloudstreamfrenchrepo"),
-        "flemmix" to listOf("yorik100cloudstream"),
         "xalaflix" to listOf("yorik100cloudstream"),
         "afterdark" to listOf("yorik100cloudstream"),
-        "frenchanime" to listOf("mouradchaouchecloudstreamfrenchrepo"),
         "fsmirrorlol" to listOf("mouradchaouchecloudstreamfrenchrepo"),
     )
     fun blocked(name: String, origin: String, version: Int = Int.MAX_VALUE): Boolean =

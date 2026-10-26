@@ -201,9 +201,10 @@ class CanonicalSourceLoader(
         }
         fun enqueue(raw: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int) {
             val candidate = Candidate(raw, binding, ordinal, priority(raw, binding))
-            synchronized(queue) { queue += candidate }
+            // Count before queueing: a worker may take it at once, and must never see a negative backlog.
             queued.incrementAndGet()
             if (native(binding)) nativeQueued.incrementAndGet()
+            synchronized(queue) { queue += candidate }
             wake.trySend(Unit)
         }
 

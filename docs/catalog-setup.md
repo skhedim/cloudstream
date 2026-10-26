@@ -2,7 +2,7 @@
 
 Le wizard configure les langues et les catégories vidéo avant de télécharger les extensions. Le même menu est accessible depuis **Découvrir → Configurer le catalogue** et **Réglages → Général → Configurer le catalogue**.
 
-La sélection recommandée privilégie les paquets et origines répertoriés dans `CatalogCuration` : Movix, Coflix (Phisher), CineStream, Frembed, Flemmix, Xalaflix, AfterDark, FrenchAnime et FsMirrorLol. Les filtres de langues, catégories, statut et compatibilité restent appliqués. Décocher cette sélection donne accès aux autres extensions vidéo du catalogue. Les paquets intrusifs AllForU/All4U et les dépôts de jeux identifiés sont exclus ; les utilitaires ne sont pas installés automatiquement.
+La sélection recommandée privilégie les paquets et origines répertoriés dans `CatalogCuration`, choisis d'après la mesure des extensions (`ProviderSurveyInstrumentedTest`) : Movix, Frembed (yorik100 et le dépôt français), Xalaflix, FsMirrorLol, AfterDark et CineStream (VO). Coflix, Flemmix et FrenchAnime ne trouvaient plus aucun titre lors de la mesure du 26/10/2026 et ne sont plus recommandés. Les filtres de langues, catégories, statut et compatibilité restent appliqués. Décocher cette sélection donne accès aux autres extensions vidéo du catalogue. Les paquets intrusifs AllForU/All4U et les dépôts de jeux identifiés sont exclus ; les utilitaires ne sont pas installés automatiquement.
 
 Le français et l’anglais sont proposés en tête, les autres langues proviennent des métadonnées des extensions. La langue d’une extension ne garantit pas celle des pistes audio : VF/VOST se choisit dans le lecteur.
 
