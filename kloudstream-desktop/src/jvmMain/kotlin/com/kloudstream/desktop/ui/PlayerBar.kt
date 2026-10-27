@@ -27,6 +27,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,7 +53,7 @@ fun PlayerBar() {
                 when (val s = state) {
                     is PlaybackState.Playing -> {
                         Text(listOfNotNull(s.title, s.episodeLabel).joinToString(" — "), color = Color.White, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        val version = when (s.version) { SourceVersion.VF -> "VF"; SourceVersion.VOST -> "VOSTFR"; SourceVersion.VO -> "VO"; else -> null }
+                        val version = versionLabel(s.version).takeIf { s.version != SourceVersion.Unknown && s.version != SourceVersion.Auto }
                         val time = if (s.durationMs > 0) "${formatTime(s.positionMs)} / ${formatTime(s.durationMs)}" else null
                         Text(listOfNotNull("Lecture dans le lecteur", if (s.quality > 0) "${s.quality}p" else null, version, time).joinToString(" · "),
                             color = Kloud.Muted, fontSize = 13.sp)
@@ -64,7 +65,8 @@ fun PlayerBar() {
                     PlaybackState.Idle, is PlaybackState.Searching -> Unit
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                (state as? PlaybackState.Playing)?.takeIf { it.versions.size > 1 }?.let { VersionChoice(it) }
                 if (state is PlaybackState.Playing && (state as PlaybackState.Playing).alternatives > 0)
                     SecondaryButton("Autre source", Icons.Filled.Refresh) { AppModel.player.nextSource() }
                 SecondaryButton(if (state is PlaybackState.Failed) "Fermer" else "Arrêter", Icons.Filled.Close) { AppModel.player.stop() }
@@ -72,6 +74,26 @@ fun PlayerBar() {
             Spacer(Modifier.width(4.dp))
         }
     }
+}
+
+/** The versions the sources offer; choosing one is remembered for the next plays (as on Android). */
+@Composable
+private fun VersionChoice(playing: PlaybackState.Playing) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        playing.versions.forEach { version ->
+            val selected = version == playing.version
+            Text(versionLabel(version), color = if (selected) Color.Black else Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(if (selected) Color.White else Kloud.SurfaceHigh)
+                    .clickable { AppModel.player.chooseVersion(version) }.padding(horizontal = 12.dp, vertical = 6.dp))
+        }
+    }
+}
+
+fun versionLabel(version: SourceVersion): String = when (version) {
+    SourceVersion.VF -> "VF"
+    SourceVersion.VOST -> "VOSTFR"
+    SourceVersion.VO -> "VO"
+    else -> "Auto"
 }
 
 /** While sources are checked, a centred card says what is happening; the mpv window opens on top once one plays. */

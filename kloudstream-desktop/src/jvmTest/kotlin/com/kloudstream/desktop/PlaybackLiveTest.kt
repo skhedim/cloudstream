@@ -31,6 +31,8 @@ class PlaybackLiveTest {
         DesktopPlatform.install()
         ExtensionManager.syncRecommended()
         ExtensionManager.loadInstalled()
+        // What AppModel.start() signals in the app; search and detail pages wait for it.
+        com.kloudstream.desktop.app.AppModel.extensionsReady.complete(Unit)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
         val engine = CanonicalSearchEngine(scope)

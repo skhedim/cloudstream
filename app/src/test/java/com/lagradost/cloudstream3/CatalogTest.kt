@@ -36,6 +36,39 @@ class CatalogTest {
         assertEquals(listOf(vi), movies.copy(languages = setOf("vi")).plan(plan))
         assertEquals(setOf(fr, series), movies.copy(types = setOf(TvType.Movie, TvType.TvSeries)).plan(plan).toSet())
     }
+    @Test fun reviewedComplementsAreInstalledWhateverTheirLanguageAndNeverFeedTheHome() {
+        val raghav = "https://raw.githubusercontent.com/KSHITIJ8473/raghav/builds/"
+        val kdesa = plugin("Kdesa", "en", listOf("Movie", "TvSeries", "Anime"), url = raghav + "Kdesa.cs3")
+        val anime = plugin("AniPM", "en", listOf("Anime", "AnimeMovie", "OVA"), url = raghav + "AniPM.cs3")
+        val unreviewed = plugin("Multimovies", "en", listOf("Movie"), url = raghav + "Multimovies.cs3")
+        val recommended = CatalogSelection(setOf("fr"), setOf(TvType.Movie, TvType.TvSeries))
+        assertEquals(listOf(kdesa), recommended.plan(listOf(kdesa, anime, unreviewed)))
+        // Anime complements come with the Anime category.
+        assertEquals(setOf(kdesa, anime), recommended.copy(types = recommended.types + TvType.Anime).plan(listOf(kdesa, anime, unreviewed)).toSet())
+
+        val api = object : MainAPI() {
+            override var lang = "en"
+            override val supportedTypes = setOf(TvType.Movie)
+        }
+        api.sourcePlugin = "/data/plugins/httpsrawgithubusercontentcomKSHITIJ8473raghavbuildsrepojson.1/Kdesa.2.cs3"
+        assertTrue(recommended.normalProvider(api))
+        assertFalse(recommended.homeProvider(api))
+        api.sourcePlugin = "/data/plugins/httpsrawgithubusercontentcomKSHITIJ8473raghavbuildsrepojson.1/Multimovies.3.cs3"
+        assertFalse(recommended.normalProvider(api))
+    }
+    @Test fun reviewedExtensionsAddedLaterAreInstalledOnceAtStart() {
+        val raghav = "https://raw.githubusercontent.com/KSHITIJ8473/raghav/builds/"
+        val kdesa = plugin("Kdesa", "en", listOf("Movie", "TvSeries"), url = raghav + "Kdesa.cs3")
+        val movy = plugin("Movy", "en", listOf("Movie", "TvSeries"), url = raghav + "Movy.cs3")
+        val anime = plugin("AniPM", "en", listOf("Anime"), url = raghav + "AniPM.cs3")
+        val unreviewed = plugin("Multimovies", "en", listOf("Movie"), url = raghav + "Multimovies.cs3")
+        val selection = CatalogSelection(setOf("fr"), setOf(TvType.Movie, TvType.TvSeries))
+        val available = listOf(kdesa, movy, anime, unreviewed)
+        assertEquals(setOf(kdesa, movy), CatalogAutoUpdate.plan(selection, available, emptySet(), emptySet()).toSet())
+        // Already installed, or offered before and removed by the viewer: left as is.
+        assertEquals(listOf(movy), CatalogAutoUpdate.plan(selection, available, setOf(kdesa.plugin.url), emptySet()))
+        assertEquals(listOf(kdesa), CatalogAutoUpdate.plan(selection, available, emptySet(), setOf("movy")))
+    }
     @Test fun wizardUpdatesOnlyItsOwnCategoriesAndKeepsOtherNativePreferences() {
         val ctx = org.robolectric.RuntimeEnvironment.getApplication()
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)

@@ -15,6 +15,7 @@ import com.lagradost.cloudstream4.aggregation.CanonicalEpisodeRow
 import com.lagradost.cloudstream4.aggregation.DiscoveryCatalog
 import com.lagradost.cloudstream4.aggregation.Highlight
 import com.lagradost.cloudstream4.aggregation.LoadedDetail
+import com.lagradost.cloudstream4.aggregation.PlaybackWork
 import com.lagradost.cloudstream4.aggregation.RuntimeCatalog
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import kotlinx.coroutines.CoroutineScope
@@ -133,12 +134,14 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
         val ids = request.externalIds
         val history = WatchEntry(request.identity, _state.value.title ?: request.title, request.year,
             _state.value.poster, _state.value.backdrop, model.family, request)
+        val imdb = ids.firstOrNull { it.namespace == ExternalIdNamespace.Imdb }?.value
         if (model.family == "movie") {
             val movie = model.movie ?: return null
             val tmdb = ids.firstOrNull { it.namespace == ExternalIdNamespace.TmdbMovie }?.value
             val minutes = tmdb?.let { runCatching { RuntimeCatalog.movieMinutes(it) }.getOrNull() }
                 ?: model.base.response.duration?.takeIf { it in 20..400 }
-            return PlayRequest(history.title, null, model.sources(movie), minutes?.let { it * 60.0 }, false, history)
+            return PlayRequest(history.title, null, model.sources(movie), minutes?.let { it * 60.0 }, false, history,
+                work = PlaybackWork(imdb, tmdbId = tmdb))
         }
         val episodes = model.episodes
         val chosen = row ?: return null
@@ -158,6 +161,7 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
             history = history.copy(episodeKey = chosen.episode.key, season = season, episode = number,
                 episodeTitle = chosen.original.name),
             next = next?.let { { playRequest(it) } },
+            work = PlaybackWork(imdb, season.takeIf { !chosen.episode.absolute }, number.takeIf { !chosen.episode.absolute }, tmdb, series = true),
         )
     }
 

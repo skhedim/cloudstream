@@ -8,13 +8,17 @@ CloudStream extensions itself: the user never sees providers.
 
 | Part | Where | What it does |
 |---|---|---|
-| Extension runtime | `extensions/` | Installs the recommended `.cs3` (same selection as Android's `CatalogCuration`), translates their Android DEX code to JVM classes once (`DexTranslator`, dex2jar with Kotlin names kept), loads each in its own class loader. Updates are checked at every start and applied right away. |
+| Extension runtime | `extensions/` | Installs the reviewed `.cs3` (`ReviewedExtensions`, the list Android uses), translates their Android DEX code to JVM classes once (`DexTranslator`, dex2jar with Kotlin names kept), loads each in its own class loader. Updates are checked at every start and applied right away. |
 | Android stand-ins | `android/`, `androidx/`, `com/lagradost/cloudstream3/` | The Android classes extensions reference: `Context`, `Log`, `Base64` and `Uri` with Android semantics, persistent `SharedPreferences`, inert views and dialogs (settings screens are not offered), and the app classes extensions call (`Plugin`, `CloudStreamApp`, `MainActivity` events, `DataStore`, a pass-through `CloudflareKiller`). |
 | Platform | `platform/` | Installs the shared engine's stores (JSON files written atomically, at most once per second), the provider registry and the artwork sampler. Metadata and ranking follow French. |
 | Home | `app/HomeModel.kt` | First pages of the providers in the viewer's language, merged by the shared `AggregatedHomeProjector` (moved from Android to `shared/`), ranked with this week's TMDB trends, with a rotating featured hero. The last home is saved and shown instantly at the next start while the sources load. |
 | Search, detail | `app/SearchModel.kt`, `app/DetailModel.kt` | The shared canonical search engine and detail builder: one card and one page per work, with completion at other providers and TMDB artwork and French synopsis. |
 | Playback | `player/` | `CanonicalSourceLoader` checks sources (reachability, real resolution and duration against TMDB); mpv starts as soon as the shared `PlaybackPolicy` allows. A failing or stalled source is replaced silently; once every provider answered, a clearly better verified source replaces the current one at the same position (and reverts if it does not play). The position is saved every 5 s for Continue watching and resume; episodes chain in the same mpv window. |
 | Interface | `ui/` | Netflix-like screens: hero, Top 10 with ranks, rows, search grid, detail page with seasons and episodes, settings. Esc goes back, Ctrl+F opens the search. |
+
+The player bar lists the versions the sources offer (VF, VOSTFR, VO); choosing one switches at the
+same position and is remembered, as in Android's Tracks menu. French subtitles are selected only on
+original audio: a VO source, or one made VOST by subtitles fetched for it.
 
 mpv runs in its own window (full screen by default, Settings → Lecture) and is driven through its JSON
 IPC: a named pipe on Windows, a unix socket elsewhere. One connection reads events; each command uses

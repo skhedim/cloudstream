@@ -218,7 +218,7 @@ class HomeViewModel : ViewModel() {
         }
         val selection = CatalogPreferences.read(ctx)
         val allRepos = apis.withLock { apis.toList() }.filter {
-            selection.normalProvider(it)
+            selection.homeProvider(it)
         }
             .distinctBy { it.name to it.mainUrl }.sortedWith(compareBy<MainAPI> { it.name }.thenBy { it.mainUrl })
             .map(::APIRepository)

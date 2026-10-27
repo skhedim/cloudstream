@@ -86,6 +86,7 @@ import com.lagradost.cloudstream4.aggregation.PlaybackVerification
 import com.lagradost.cloudstream4.aggregation.ProviderHealth
 import com.lagradost.cloudstream4.aggregation.StreamProbes
 import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
+import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSubtitles
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream3.ui.player.source_priority.LinkSource
 import com.lagradost.cloudstream3.ui.player.source_priority.ProfileSettings
@@ -1983,6 +1984,7 @@ class GeneratorPlayer : FullScreenPlayer() {
     private fun getAutoSelectSubtitle(
         subtitles: Set<SubtitleData>, settings: Boolean, downloads: Boolean
     ): SubtitleData? {
+        CanonicalSubtitles.autoSelect(currentSelectedLink?.first, subtitles)?.let { return it.subtitle }
         val langCode = preferredAutoSelectSubtitles ?: return null
         if (downloads) {
             sortSubs(subtitles).firstOrNull {

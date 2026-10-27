@@ -2,11 +2,18 @@
 
 The setup wizard asks for languages and video categories before downloading extensions. The same screen is available from **Discover → Set up the catalogue** and **Settings → General → Set up the catalogue**.
 
-The recommended selection only installs the packages and origins listed in `CatalogCuration`. They are chosen from the extension survey (`ProviderSurveyInstrumentedTest`): Movix, Frembed (yorik100 and the French repository) and Xalaflix. For now only French catalogues are recommended; original-version and anime extensions have not been evaluated yet. The following are not recommended:
+The recommended selection only installs the packages and origins listed in `ReviewedExtensions` (shared module, the same list as the desktop app). They are chosen from the extension surveys (see [aggregation](aggregated-search.md#recommended-extensions-survey)):
+
+- French catalogues: Movix, Frembed (yorik100 and the French repository) and Xalaflix. They feed the home rows.
+- Original version: KDesa and Movy. Movix already plays every title measured but rarely offers VOST; these add the original version, made VOST by French subtitles when available. They are searched and played, never shown on the home, and they start only after the French catalogues have answered.
+- Anime: AniPM (French subtitles on every anime measured) and Anv as a backup. They follow the same rules. Anime appear only if the **Anime** category is selected.
+
+These four complements show a donation request on Android; the app removes it before it appears (`ExtensionPromptBlocker`). The following are not recommended:
 
 - AfterDark: no playable links, and its site shows a verification page during playback;
 - FsMirrorLol: offers no title the others lack, and its pages can no longer be read;
-- Coflix, Flemmix and FrenchAnime: found no title in the 2026-10-26 survey.
+- Coflix, Flemmix and FrenchAnime: found no title in the 2026-10-26 survey;
+- CineStream, StreamPlay and the other original-version or anime candidates: slower, fewer titles or not loadable (2026-10-27 survey).
 
 Language, category, status and compatibility filters still apply. Unticking the recommended selection gives access to the other video extensions of the catalogue. Known intrusive packages (AllForU/All4U) and game repositories are excluded; utilities are never installed automatically.
 

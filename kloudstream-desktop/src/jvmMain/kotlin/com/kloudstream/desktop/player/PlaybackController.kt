@@ -10,8 +10,10 @@ import com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader
 import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
 import com.lagradost.cloudstream4.aggregation.PlaybackPolicy
 import com.lagradost.cloudstream4.aggregation.PlaybackSource
+import com.lagradost.cloudstream4.aggregation.ExternalSubtitles
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream4.aggregation.PlaybackVerification
+import com.lagradost.cloudstream4.aggregation.PlaybackWork
 import com.lagradost.cloudstream4.aggregation.ProviderHealth
 import com.lagradost.cloudstream4.aggregation.SourceCheck
 import com.lagradost.cloudstream4.aggregation.SourceRanking
@@ -41,6 +43,8 @@ data class PlayRequest(
     val history: WatchEntry,
     /** The next episode, resolved when this one ends. */
     val next: (suspend () -> PlayRequest?)? = null,
+    /** For French subtitles when only original-version sources exist. */
+    val work: PlaybackWork? = null,
 )
 
 sealed interface PlaybackState {
@@ -49,6 +53,8 @@ sealed interface PlaybackState {
     data class Playing(
         val title: String, val episodeLabel: String?, val source: String, val quality: Int,
         val version: SourceVersion, val positionMs: Long, val durationMs: Long, val alternatives: Int,
+        /** Versions the sources offer, and the remembered choice (Auto: the engine decides). */
+        val versions: List<SourceVersion> = emptyList(), val preference: SourceVersion = SourceVersion.Auto,
     ) : PlaybackState
     data class Failed(val title: String, val message: String) : PlaybackState
 }
@@ -60,6 +66,7 @@ sealed interface PlaybackState {
  * chains episodes in the same mpv window.
  */
 class PlaybackController(private val scope: CoroutineScope) {
+    private companion object { const val VERSION_KEY = "source_version" }
     private val _state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val state: StateFlow<PlaybackState> get() = _state
 
@@ -87,6 +94,16 @@ class PlaybackController(private val scope: CoroutineScope) {
     /** Skips to the next source (user request). */
     fun nextSource() { session?.skip() }
 
+    /** The version to prefer from now on (like Android's player menu); switches now if one is available. */
+    fun chooseVersion(version: SourceVersion) {
+        prefs.edit().putString(VERSION_KEY, version.name).apply()
+        session?.choose(version)
+    }
+
+    private val prefs get() = com.kloudstream.desktop.platform.DesktopPreferences.open("kloudstream")
+    private fun preferredVersion(): SourceVersion =
+        runCatching { SourceVersion.valueOf(prefs.getString(VERSION_KEY, null) ?: "Auto") }.getOrDefault(SourceVersion.Auto)
+
     private fun ensureMpv(title: String): Mpv {
         mpv?.takeIf { it.isAlive }?.let { return it }
         val started = Mpv.start(title, fullscreen)
@@ -101,6 +118,7 @@ class PlaybackController(private val scope: CoroutineScope) {
     }
 
     private inner class Session(val request: PlayRequest) {
+        @Volatile private var preference = preferredVersion()
         private val sources = mutableListOf<PlaybackSource>()
         private val subtitles = mutableListOf<SubtitleFile>()
         private val failed = mutableSetOf<List<Any?>>()
@@ -129,7 +147,8 @@ class PlaybackController(private val scope: CoroutineScope) {
                 val acquisition = launch {
                     try {
                         CanonicalSourceLoader().load(request.bindings, clearCache = false, casting = false,
-                            preference = SourceVersion.Auto, expectedSeconds = request.expectedSeconds, episode = request.isEpisode,
+                            preference = preference, expectedSeconds = request.expectedSeconds, episode = request.isEpisode,
+                            work = request.work,
                             onSource = { source ->
                                 synchronized(sources) {
                                     sources.removeAll { PlaybackSources.key(it.link) == PlaybackSources.key(source.link) }
@@ -183,8 +202,25 @@ class PlaybackController(private val scope: CoroutineScope) {
 
         fun skip() = scope.launch(Dispatchers.IO) { trial = false; onError("skipped") }
 
+        private fun score(source: PlaybackSource) = SourceRanking.score(source.metadata, source.quality, preference)
+
         private fun ranked(): List<PlaybackSource> = synchronized(sources) {
-            SourceRanking.rank(sources.filter { PlaybackSources.key(it.link) !in failed })
+            sources.filter { PlaybackSources.key(it.link) !in failed }.sortedWith(SourceRanking.comparator(::score, { 0 },
+                { it.quality }, { it.metadata.ordinal }, { it.link.name }, { it.link.url }))
+        }
+
+        fun choose(version: SourceVersion) = scope.launch(Dispatchers.IO) {
+            preference = version
+            val playing = current
+            val target = ranked().firstOrNull { version == SourceVersion.Auto || it.version == version }
+            if (playing == null || target == null || PlaybackSources.key(target.link) == PlaybackSources.key(playing.link)) {
+                publishPlaying()
+                return@launch
+            }
+            AppLog.info("Version ${version.name} chosen: ${target.link.name}")
+            trial = false
+            previous = null
+            load(target, if (started) positionMs else startPositionMs)
         }
 
         private fun load(source: PlaybackSource, startMs: Long) {
@@ -217,8 +253,11 @@ class PlaybackController(private val scope: CoroutineScope) {
 
         private fun publishPlaying() {
             val source = current ?: return
+            val versions = ranked().map { it.version }.filter { it != SourceVersion.Unknown && it != SourceVersion.Auto }
+                .distinct().sortedByDescending(PlaybackSources::versionRank)
             _state.value = PlaybackState.Playing(request.title, request.episodeLabel, source.link.name,
-                PlaybackSources.quality(source.link), source.version, positionMs, durationMs, ranked().size - 1)
+                PlaybackSources.quality(source.link), source.version, positionMs, durationMs, ranked().size - 1,
+                versions, preference)
         }
 
         fun onProperty(player: Mpv, name: String, value: JsonNode?) {
@@ -255,11 +294,15 @@ class PlaybackController(private val scope: CoroutineScope) {
             if (session === this) { session = null; _state.value = PlaybackState.Idle }
         }
 
-        /** French subtitles are selected only when the audio is not French. */
+        /**
+         * French subtitles are selected for original audio only: a VO source, or one that is VOST
+         * through subtitles fetched for it (those first). VF and VOST streams carry their own.
+         */
         private fun addSubtitles(player: Mpv) {
-            val list = synchronized(subtitles) { subtitles.toList() }
+            val playing = current
+            val list = synchronized(subtitles) { subtitles.toList() }.sortedBy { if (ExternalSubtitles.isExternal(it)) 0 else 1 }
             if (list.isEmpty()) return
-            val wantFrench = current?.version != SourceVersion.VF
+            val wantFrench = playing != null && (playing.metadata.addedSubtitles || playing.version == SourceVersion.VO)
             var selected = false
             val commands = list.take(12).map { subtitle ->
                 val french = subtitle.lang.lowercase().let { it.startsWith("fr") || "fran" in it }
@@ -320,7 +363,7 @@ class PlaybackController(private val scope: CoroutineScope) {
                 PlaybackSources.key(it.link) != PlaybackSources.key(playing.link) &&
                     it.metadata.check == SourceCheck.Verified &&
                     (it.version != SourceVersion.VO || currentVersion == SourceVersion.VO) &&
-                    policy.shouldUpgrade(playing.score, it.score)
+                    policy.shouldUpgrade(score(playing), score(it))
             }.take(3)
             for (candidate in candidates) {
                 if (!StreamProbes.reachable(candidate.link)) {

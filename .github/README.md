@@ -13,7 +13,7 @@ KloudStream is a build of [CloudStream](https://github.com/recloudstream/cloudst
 - **Unified search**: one result per work, matched across providers by TMDB/IMDb IDs and by titles, ignoring accents and sequel numbering. Results are ranked by relevance.
 - **One page per title**: seasons and episodes are merged across providers. A title found in a single catalogue is looked up in the others when opened.
 - **Checked playback**: before a source can play, it is checked for reachability, real resolution and real duration against TMDB. This drops fake 4K files and wrong films. Playback starts within a few seconds on a good French source, then switches silently to a better checked one.
-- **Recommended extensions**: catalogue setup suggests French extensions selected from on-device measurements. See [catalogue setup](https://github.com/skhedim/cloudstream/blob/main/docs/catalog-setup.md).
+- **Recommended extensions**: catalogue setup installs French catalogues, plus original-version and anime extensions that only add what they lack: the original version, VOST through French subtitles fetched for it, and anime with French subtitles. All are selected from measurements, and their donation pop-ups are removed. See [catalogue setup](https://github.com/skhedim/cloudstream/blob/main/docs/catalog-setup.md).
 - **Shared engine**: the aggregation engine is a Kotlin Multiplatform module shared by the Android app and the Windows app.
 
 ## Install and updates

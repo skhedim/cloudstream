@@ -22,7 +22,7 @@ class ExtensionRuntimeLiveTest {
         System.setProperty("kloudstream.home", Files.createTempDirectory("kloudstream-live").toString())
 
         val changed = ExtensionManager.syncRecommended { println("Installing $it") }
-        assertEquals(4, changed.size)
+        assertEquals(com.lagradost.cloudstream4.aggregation.ReviewedExtensions.all.size, changed.size)
         ExtensionManager.loadInstalled()
         val status = ExtensionManager.status.value
         status.forEach { println("${it.extension.key}: ${it.state} ${it.providers} ${it.error ?: ""}") }

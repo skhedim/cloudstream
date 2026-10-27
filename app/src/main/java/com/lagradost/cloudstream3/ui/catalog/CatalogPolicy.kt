@@ -21,11 +21,16 @@ data class CatalogSelection(val languages: Set<String>, val types: Set<TvType>, 
         if (p.internalName.equals("FStream", true) && p.version <= 16) return false
         val media = p.tvTypes.orEmpty().mapNotNull { name -> TvType.entries.find { it.name.equals(name, true) } }
         if (recommendedOnly && !CatalogCuration.recommended(plugin)) return false
-        return acceptsLanguage(p.language) && media.any { it in types && it in CatalogCuration.videoTypes }
+        // Original-version and anime complements serve a French-speaking viewer whatever their language.
+        return (acceptsLanguage(p.language) || CatalogCuration.complement(CatalogCuration.reviewed(plugin)?.role)) &&
+            media.any { it in types && it in CatalogCuration.videoTypes }
     }
 
-    fun normalProvider(api: MainAPI): Boolean = CatalogCuration.allowedProvider(api, recommendedOnly) && acceptsLanguage(api.lang) &&
+    fun normalProvider(api: MainAPI): Boolean = CatalogCuration.allowedProvider(api, recommendedOnly) &&
+        (acceptsLanguage(api.lang) || CatalogCuration.complement(api)) && CatalogCuration.usesApi(api) &&
         api.supportedTypes.any { it in types && it in CatalogCuration.videoTypes }
+    /** Home rows come from the catalogues only; complements are searched and played. */
+    fun homeProvider(api: MainAPI): Boolean = normalProvider(api) && !CatalogCuration.complement(api)
     fun normalItem(item: SearchResponse): Boolean = item.type == null ||
         (item.type in types && item.type in CatalogCuration.videoTypes)
 

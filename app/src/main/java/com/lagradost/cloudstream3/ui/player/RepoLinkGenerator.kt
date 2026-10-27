@@ -13,6 +13,7 @@ import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader
+import com.lagradost.cloudstream4.aggregation.PlaybackWork
 import com.lagradost.cloudstream4.aggregation.SourceVersion
 import com.lagradost.cloudstream3.ui.player.aggregation.CanonicalSourceDiagnostics
 import kotlinx.coroutines.currentCoroutineContext
@@ -62,6 +63,15 @@ class RepoLinkGenerator(
         return minutes?.let { it * 60.0 } to true
     }
 
+    /** For French subtitles when only original-version sources exist. */
+    private fun work(episode: ResultEpisode): PlaybackWork? {
+        val response = page ?: return null
+        val series = response !is com.lagradost.cloudstream3.MovieLoadResponse
+        return PlaybackWork(runCatching { with(LoadResponse) { response.getImdbId() } }.getOrNull(),
+            episode.season.takeIf { series }, episode.episode.takeIf { series && episode.season != null },
+            runCatching { with(LoadResponse) { response.getTMDbId() } }.getOrNull(), series)
+    }
+
     override val hasCache = true
     override val canSkipLoading = true
     override fun getId(index: Int): Int? = videos.getOrNull(index)?.id
@@ -93,7 +103,7 @@ class RepoLinkGenerator(
                     val count = subtitleNames.getOrPut(data.originalName) { AtomicInteger(0) }.incrementAndGet()
                     subtitleCallback(data.copy(nameSuffix = if (count == 1) "" else count.toString()))
                 },
-                onReady = { onCanonicalReady?.invoke(offset) })
+                onReady = { onCanonicalReady?.invoke(offset) }, work = work(current))
             currentCoroutineContext().ensureActive()
             if (com.lagradost.cloudstream3.BuildConfig.DEBUG) CanonicalSourceDiagnostics.write(current, sources)
             return sources.links.any { it.type in sourceTypes }

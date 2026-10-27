@@ -15,6 +15,7 @@ import com.lagradost.cloudstream4.aggregation.AggregationPlatform
 import com.lagradost.cloudstream4.aggregation.ArtworkSampler
 import com.lagradost.cloudstream4.aggregation.KeyValueStore
 import com.lagradost.cloudstream4.aggregation.ProviderGateway
+import com.lagradost.cloudstream4.aggregation.ReviewedExtensions
 import com.lagradost.cloudstream4.domain.media.ArtworkSignature
 
 /** Android side of the shared aggregation engine: existing stores, APIRepository guards, Bitmap decoding. */
@@ -24,6 +25,13 @@ object AndroidAggregation {
         AggregationPlatform.gateway = ApiRepositoryGateway
         AggregationPlatform.artworkSampler = BitmapArtworkSampler
         AggregationPlatform.debug = BuildConfig.DEBUG
+        (CloudStreamApp.context?.applicationContext as? android.app.Application)
+            ?.let(com.lagradost.cloudstream3.ui.catalog.ExtensionPromptBlocker::install)
+        com.lagradost.cloudstream3.ui.catalog.CatalogAutoUpdate.install()
+        // Reviewed extension settings (e.g. catalogue-only providers off), unless already set.
+        ReviewedExtensions.all.flatMap { it.preferences.entries }.forEach { (key, value) ->
+            if (CloudStreamApp.getKey<Any>(key) == null) CloudStreamApp.setKey(key, value)
+        }
     }
 }
 

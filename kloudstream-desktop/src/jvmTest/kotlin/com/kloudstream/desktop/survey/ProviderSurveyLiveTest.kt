@@ -58,7 +58,9 @@ import kotlin.math.abs
  * `group`: candidates of group `vo` or `anime` get the works of that group, `all` gets every work).
  */
 class ProviderSurveyLiveTest {
-    data class Candidate(val repo: String, val name: String, val group: String, val apis: List<String>? = null)
+    /** [preferences] are set before loading, e.g. to turn off an extension's catalogue-only providers. */
+    data class Candidate(val repo: String, val name: String, val group: String, val apis: List<String>? = null,
+        val preferences: Map<String, Any> = emptyMap())
     data class Work(val group: String, val kind: String, val tmdb: Long, val imdb: String?, val title: String,
         val original: String, val english: String? = null, val year: Int, val runtime: Int?, val queries: List<String> = emptyList())
     data class Spec(val out: String, val cache: String, val candidates: List<Candidate>, val corpus: List<Work>,
@@ -149,6 +151,7 @@ class ProviderSurveyLiveTest {
             val loader = URLClassLoader(arrayOf(dir.toURI().toURL()), ProviderSurveyLiveTest::class.java.classLoader)
             val plugin = loader.loadClass(manifest.pluginClassName).getDeclaredConstructor().newInstance() as BasePlugin
             plugin.filename = file.absolutePath
+            candidate.preferences.forEach { (key, value) -> CloudStreamApp.setKey(key, value) }
             val loadStarted = System.currentTimeMillis()
             withTimeoutOrNull(60_000) {
                 if (plugin is Plugin) plugin.load(DesktopContext as Context) else plugin.load()
@@ -194,7 +197,13 @@ class ProviderSurveyLiveTest {
                         c.externalIds.none { id -> ids.any { it.namespace == id.namespace && it != id } }
                 }.sortedBy { (_, c) -> c.year?.let { abs(it - work.year) } ?: 5 }
                 val chosen = byId ?: byTitle.firstOrNull()
-                if (chosen != null) { match = chosen.first; how = if (byId != null) "id" else "title:$query"; break }
+                if (chosen != null) {
+                    match = chosen.first; how = if (byId != null) "id" else "title:$query"
+                    // Without a year (or an ID), the app cannot tell the work from a remake: it never merges it.
+                    row["searchYear"] = chosen.second.year
+                    row["searchIds"] = chosen.second.externalIds.map { it.namespace.name }
+                    break
+                }
             }
             row["searchResults"] = searched
             row["found"] = match != null

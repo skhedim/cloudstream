@@ -12,6 +12,7 @@ import com.lagradost.cloudstream3.mapper
 import com.lagradost.cloudstream3.plugins.BasePlugin
 import com.lagradost.cloudstream3.plugins.Plugin
 import com.lagradost.cloudstream3.utils.extractorApis
+import com.lagradost.cloudstream4.aggregation.ReviewedExtensions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -23,27 +24,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.net.URLClassLoader
-
-/** An extension the app installs by default (same selection as the Android catalogue). */
-data class RecommendedExtension(val key: String, val repository: String, val internalName: String)
-
-object RecommendedExtensions {
-    private const val KARMA = "https://raw.githubusercontent.com/Kraptor123/cs-Karma/refs/heads/master/repo.json"
-    private const val YORIK = "https://raw.githubusercontent.com/yorik100/Cloudstream/refs/heads/builds/repo.json"
-    private const val AMSC = "https://raw.githubusercontent.com/mouradchaouche/cloudstream-frenchrepo/main/repo.json"
-
-    /**
-     * French catalogues chosen from the provider survey (docs/catalog-setup.md): Movix plays every
-     * title in 720p+, Frembed and Xalaflix are backups, the French Frembed repository feeds the
-     * catalogue. Original-version and anime extensions are not evaluated yet.
-     */
-    val all = listOf(
-        RecommendedExtension("movix", KARMA, "Movix"),
-        RecommendedExtension("frembed", YORIK, "Frembed"),
-        RecommendedExtension("xalaflix", YORIK, "Xalaflix"),
-        RecommendedExtension("frembed-fr", AMSC, "Frembed"),
-    )
-}
 
 data class InstalledExtension(
     val key: String,
@@ -110,7 +90,7 @@ object ExtensionManager {
             val current = installed().associateBy { it.key }.toMutableMap()
             val changed = mutableListOf<String>()
             val plugins = mutableMapOf<String, List<SitePlugin>>()
-            for (recommended in RecommendedExtensions.all) {
+            for (recommended in ReviewedExtensions.all) {
                 try {
                     val list = plugins.getOrPut(recommended.repository) { fetchPlugins(recommended.repository) }
                     val site = list.firstOrNull { it.internalName.equals(recommended.internalName, true) } ?: run {
@@ -134,7 +114,7 @@ object ExtensionManager {
                 }
             }
             // Extensions removed from the recommended selection are uninstalled.
-            val keys = RecommendedExtensions.all.map { it.key }.toSet()
+            val keys = ReviewedExtensions.all.map { it.key }.toSet()
             current.keys.filter { it !in keys }.forEach { key ->
                 unloadLocked(key)
                 current.remove(key)?.let { File(AppDirs.extensions, it.file).delete() }
@@ -169,6 +149,10 @@ object ExtensionManager {
     private fun loadLocked(extension: InstalledExtension) {
         val file = File(AppDirs.extensions, extension.file)
         try {
+            // Reviewed settings (e.g. catalogue-only providers off), unless already set.
+            ReviewedExtensions.all.firstOrNull { it.key == extension.key }?.preferences?.forEach { (key, value) ->
+                if (CloudStreamApp.getKeyClass(key, Any::class.java) == null) CloudStreamApp.setKey(key, value)
+            }
             val dir = DexTranslator.translate(file, AppDirs.classes)
             val manifest = mapper.readValue<BasePlugin.Manifest>(File(dir, "manifest.json"))
             val loader = URLClassLoader(arrayOf(dir.toURI().toURL()), ExtensionManager::class.java.classLoader)

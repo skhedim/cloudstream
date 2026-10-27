@@ -226,16 +226,25 @@ Every source gets a **version** and a **check** before it can win:
   `Unchecked` because the player may be allowed where we are not. Results: `Verified`,
   `Alive` (reachable, duration unknown) or `Unchecked`.
 - Inspection runs on 4 workers in score order, at most 30 per playback, cached for 20 min.
+- Original-version and anime providers (outside the viewer's language) complement the French
+  ones: unless VO or VOST was chosen, they start once the French bindings have answered and their
+  links were checked, and they are skipped when those already offer both VF and VOST.
+- VOST where none exists: when such a provider's link carries original audio, French subtitles are
+  looked up once for the work (`ExternalSubtitles`: the public OpenSubtitles catalogue, keyed by
+  IMDb ID, resolved from TMDB if needed, web releases first). If there are some, the source becomes
+  VOST (`addedSubtitles`), the subtitles are added to the playback and the players select them for
+  it, and only for it: VF and VOST streams carry their own, so nothing is selected over them.
 
 Score = quality tier (480p 1, 720p 2, 1080p 3, 1440p 3.5, 2160p 4, unreported 1.5) + version
 bonus (VF 1.95, VOST 0.9, VO −10) + check (Verified 0, Alive −0.3, Unchecked −0.6) − provider
-playback penalty. Declared resolutions above 1080p count as 1080p unless the manifest confirms
+playback penalty − 1 for added subtitles (they may be timed for another release). Declared resolutions above 1080p count as 1080p unless the manifest confirms
 them (fake "4K" labels are typical of scam links). A remembered version is worth 2.5 (others half
 their bonus); a version chosen in the player for the current playback is a hard filter.
 
 `PlaybackPolicy` starts playback at once on a verified VF of 720p or more, after 4 s on a verified
 native 720p+, when no native binding is pending, and in any case after 8 s with the best native
-source. VO only starts once every native binding failed. Acquisition continues afterwards
+source. VO (or VOST through added subtitles) starts once the native bindings are done and gave
+nothing better, as soon as one is verified. Acquisition continues afterwards
 (6 bindings at once, 2 per provider, 15 s per binding, 30 s in total).
 
 The player switches silently, without a dialog, only to a `Verified`, non-VO, reachable source
@@ -288,9 +297,32 @@ catalogue (`CatalogCuration`) follows the results:
 FsMirrorLol's pages also fail verification since its site changed (movies are declared as
 series, series pages have no title). Coflix, FrenchAnime, Flemmix, Yakmov, Un jour Un Film, Wiflix,
 Arte and ReelFren found none of the 47 titles. None of these is recommended. Legitimate French streams matched the TMDB
-runtime in every case but one. Only French catalogues are recommended for now; original-version
-(CineStream…) and anime extensions are not evaluated yet. The VO rules above stay in the engine
-for providers the user enables.
+runtime in every case but one.
+
+On 2026-10-27 the survey ran on the desktop runtime (`tools/desktop/provider-survey.sh`) over 55
+original-version and anime candidates (3 titles each), then the best ones over 27 titles (10 films
+including October 2026 releases and niche ones, 7 series, 10 anime) against the French catalogues:
+
+| Extension | Playable | With French subtitles | Kept |
+|---|---|---|---|
+| Movix (French) | 27/27 | — (VOST rarely: 1 film, 5 anime) | already |
+| KDesa | 14/17 | 11 | yes, original version |
+| Movy | 15/17 (first link in 0.2 s) | 8 | yes, original version |
+| AniPM | 10/10 anime | 10 | yes, anime |
+| Anv | 10/10 anime | 5 | yes, anime backup |
+| KickassAnime | 10/10 anime (up to 2160p) | 9 | no: no year in search results, never merged |
+| AniStream | 7/10 anime | 6 | no: fewer titles, no year in search results |
+| JustPlay, Multimovies, NetNaija, 4K HDHub, DiviCast | 4–15/17 | 0–6 | no: slower or fewer |
+| CineStream | most titles, 40 s per title, many dead links | — | no: too slow |
+
+No candidate found a title Movix lacks: they add the original version, and VOST with French
+subtitles, where the French catalogues only have VF. Anime catalogues list English titles: TMDB's
+English title is added to the search references and to detail completion, and an absolute
+episode list joins the first season within its known length (absolute N is S1EN). The extensions of three repositories
+(Phisher, CNC, raghav) show a donation request on Android, a `DonationDialogFragment`;
+`ExtensionPromptBlocker` removes it before it is built (the desktop never shows extension dialogs,
+see `ExtensionPrompts`). 19 candidates did not load on the desktop runtime (Android classes they
+need at load) and were not measured; the kept ones run on both apps.
 
 The survey lifts the reviewed-only filter in memory (`CatalogPreferences.surveyAllProviders`),
 never in the saved preferences, so a crashing extension cannot leave every extension enabled.
