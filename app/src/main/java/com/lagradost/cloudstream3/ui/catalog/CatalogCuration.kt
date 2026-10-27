@@ -8,8 +8,7 @@ import java.io.File
 
 /** A small reviewed default, rather than trusting a package's self-declared Movie tag. */
 object CatalogCuration {
-    val videoTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AnimeMovie, TvType.OVA,
-        TvType.Cartoon, TvType.Documentary, TvType.AsianDrama, TvType.Video)
+    val videoTypes = com.lagradost.cloudstream3.ui.home.aggregation.HomeFeedPolicy.videoTypes
     private fun key(value: String) = value.lowercase().filter(Char::isLetterOrDigit)
     private val excludedOrigins = listOf("rvrbeast76allforurepo", "errorcode26ayucloudstreamgames", "flummoxgamerflummoxrepo")
     private val utilities = setOf("megaprovider", "m3uplayer", "m3uplaylistplayerprovider", "jellyfin", "stremioaddon", "stremiox",

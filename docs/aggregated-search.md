@@ -157,6 +157,7 @@ supplies UI, its stores and its extension wrappers.
 | `shared/src/commonMain/.../domain/media` | Pure domain: `MediaAggregator`, `EpisodeAggregator`, `MediaReferenceResolver`, planners, `SearchSession`. |
 | `shared/src/jvmCommonMain/.../aggregation` (Android + JVM) | `CanonicalSearchEngine`, `SearchMediaMapper`, identity evidence/adapters, TMDB access (`SearchMetadataCatalog`), poster signatures, `CanonicalDetailRequest/Store/Loader/Builder`, `CanonicalSourceLoader`, `SourceRanking`, `PlaybackPolicy`, `PlaybackVerification`, `StreamProbe`, `ProviderHealth`, `SourceRegistry`, `ProviderGateway`. |
 | `shared/src/jvmMain/.../aggregation` | Desktop image decoding (`ImageIoArtworkSampler`). |
+| `shared/src/jvmCommonMain/.../ui/home/aggregation` | Home projection shared with the desktop app (`AggregatedHomeProjector`, `HomeFeedPolicy`, `HomeShelf`, personalized recommendations); Android maps shelves to its string resources (`HomeShelfTitles.kt`). |
 | `app/.../ui/search/aggregation/AndroidAggregation.kt` | Installs the Android platform: `CloudStreamApp` key/value store, `APIRepository` gateway (timeouts, load cache), `BitmapFactory` sampler. |
 | `app/...` | `SearchViewModel` (LiveData bridge), `AggregatedSearchResponse`, `CanonicalDetail` (projection onto upstream detail UI, progress migration), player integration, diagnostics. |
 

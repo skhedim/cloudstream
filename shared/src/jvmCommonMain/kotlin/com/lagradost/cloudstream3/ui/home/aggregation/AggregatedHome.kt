@@ -11,19 +11,22 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 
 /** Rows describe content, never extension labels. No release dates are invented. */
-/** Shelves in display order, like streaming platforms: what everyone watches, what is new, what is for you. */
-enum class HomeShelf(val title: Int) {
-    Top10(R.string.home_top10), Recent(R.string.home_recent_additions), Trending(R.string.home_trending),
-    ForYou(R.string.home_for_you_movies), ForYouSeries(R.string.home_for_you_series),
-    Movies(R.string.home_movies), Series(R.string.home_series),
-    Anime(R.string.home_anime), Documentaries(R.string.home_documentaries), Action(R.string.home_action),
-    Comedy(R.string.home_comedy), Thriller(R.string.home_thriller), ScienceFiction(R.string.home_scifi),
-    Discover(R.string.home_discover)
+/**
+ * Shelves in display order, like streaming platforms: what everyone watches, what is new, what is
+ * for you. Shared by Android and the desktop app; each platform provides the titles.
+ */
+enum class HomeShelf {
+    Top10, Recent, Trending, ForYou, ForYouSeries, Movies, Series,
+    Anime, Documentaries, Action, Comedy, Thriller, ScienceFiction, Discover
 }
 data class HomeFeed(val provider: ProviderKey, val implementation: String, val sections: List<HomePageList>, val animationOnly: Boolean = false)
 data class HomeShelfItems(val shelf: HomeShelf, val cards: List<AggregatedSearchResponse>)
 
 object HomeFeedPolicy {
+    /** Kinds of works the catalogue and the home show (no live TV, music, audiobooks or torrents). */
+    val videoTypes = setOf(TvType.Movie, TvType.TvSeries, TvType.Anime, TvType.AnimeMovie, TvType.OVA,
+        TvType.Cartoon, TvType.Documentary, TvType.AsianDrama, TvType.Video)
+
     private fun normalize(text: String) = Normalizer.normalize(text.lowercase(), Normalizer.Form.NFD)
         .replace(Regex("\\p{M}+"), "")
     fun recent(text: String): Boolean {
@@ -85,13 +88,13 @@ class AggregatedHomeProjector {
         data class Item(val feed: HomeFeed, val response: SearchResponse, val section: String)
         val lists = feeds.map { feed -> feed.sections.flatMap { section ->
             section.list.take(120).map { Item(feed, it, section.name) }
-        }.filter { it.response.type == null || it.response.type in com.lagradost.cloudstream3.ui.catalog.CatalogCuration.videoTypes } }
+        }.filter { it.response.type == null || it.response.type in HomeFeedPolicy.videoTypes } }
         // Stable round robin preserves each feed's order and never rewards faster providers.
         val items = buildList {
             for (rank in 0 until (lists.maxOfOrNull { it.size } ?: 0)) lists.forEach { it.getOrNull(rank)?.let(::add) }
         }.sortedByDescending { HomeFeedPolicy.recent(it.section) }
         val suggestions = recommendations.flatMap { batch -> batch.items.map { batch to it } }
-            .filter { (_, response) -> response.type == null || response.type in com.lagradost.cloudstream3.ui.catalog.CatalogCuration.videoTypes }
+            .filter { (_, response) -> response.type == null || response.type in HomeFeedPolicy.videoTypes }
         val originals = items.map { it.feed.provider to it.response } +
             suggestions.map { (batch, response) -> batch.source.binding.provider to response }
         val candidates = items.map {
