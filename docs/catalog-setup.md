@@ -43,4 +43,6 @@ ANDROID_SERIAL=192.0.2.10:5555 tools/catalog-fixture.sh --skip-build
 ANDROID_SERIAL=192.0.2.10:5555 tools/home-shelves-fixture.sh --skip-build
 ```
 
+`tools/desktop/provider-survey.sh spec.json` runs the provider survey on the desktop runtime, without tying up a TV. It measures search and identity, the film or first episode, links, and up to four streams per title (reachability, resolution, duration against TMDB, audio and subtitle languages). It also records the dialogs and toasts each extension tries to show. The spec lists the candidates (`repo`, `name`, `group`) and the corpus works. The extensions run inside the test JVM with your rights, as they would in the app.
+
 The tests use fictional films and series and temporary profiles. The catalogue scenario also checks repository metadata, a local download with a wrong checksum, keeping a valid archive, registering an archive already downloaded, and the first-run flow (language → catalogue → layout). The grid scenario checks that focus really moves past the first twelve cards, scrolling after a load, the counter, retries, and that results are kept when the grid is reopened.

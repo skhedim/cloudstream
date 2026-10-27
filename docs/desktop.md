@@ -59,6 +59,8 @@ checking that a French source plays for 20 seconds.
 ## Limits
 
 - Extension settings screens (Android views) are not available; extensions use their defaults.
+- Dialogs and toasts extensions try to show (donation requests, notices) are never displayed; they
+  are written to the log (`ExtensionPrompts`).
 - Challenges that need a browser (Cloudflare, WebView extractors) are not solved; those sources are
   skipped like failing ones.
 - Only the French catalogues are recommended, as on Android.

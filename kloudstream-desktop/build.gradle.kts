@@ -69,6 +69,12 @@ tasks.withType<JavaExec>().configureEach {
 tasks.withType<Test>().configureEach {
     // Live extension tests download real extensions and query their sites: opt in with -Pkloudstream.live.
     systemProperty("kloudstream.live", providers.gradleProperty("kloudstream.live").orNull ?: "false")
+    // Provider survey (ProviderSurveyLiveTest): a spec file; many extensions load in one JVM.
+    providers.gradleProperty("kloudstream.survey").orNull?.let {
+        systemProperty("kloudstream.survey", it)
+        systemProperty("kotlinx.coroutines.io.parallelism", "256")
+        maxHeapSize = "4g"
+    }
     testLogging { events("passed", "skipped", "failed"); showStandardStreams = true }
 }
 

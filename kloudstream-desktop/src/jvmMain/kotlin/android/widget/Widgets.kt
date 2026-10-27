@@ -41,12 +41,13 @@ open class LinearLayout(context: Context?) : ViewGroup(context) {
     }
 }
 
-open class Toast {
-    open fun show() {}
+/** Recorded, never shown (see ExtensionPrompts). */
+open class Toast(private val text: CharSequence? = null) {
+    open fun show() = com.kloudstream.desktop.extensions.ExtensionPrompts.record("toast", text)
 
     companion object {
         const val LENGTH_SHORT = 0
         const val LENGTH_LONG = 1
-        @JvmStatic fun makeText(context: Context?, text: CharSequence?, duration: Int): Toast = Toast()
+        @JvmStatic fun makeText(context: Context?, text: CharSequence?, duration: Int): Toast = Toast(text)
     }
 }

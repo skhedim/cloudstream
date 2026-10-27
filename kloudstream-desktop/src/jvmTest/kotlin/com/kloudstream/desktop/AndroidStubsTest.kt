@@ -3,6 +3,9 @@ package com.kloudstream.desktop
 import android.graphics.Color
 import android.net.Uri
 import android.util.Base64
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
+import com.kloudstream.desktop.extensions.ExtensionPrompts
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -45,5 +48,14 @@ class AndroidStubsTest {
         assertEquals(0xFFE50914.toInt(), Color.parseColor("#E50914"))
         assertEquals(0x80E50914.toInt(), Color.parseColor("#80E50914"))
         assertEquals(Color.WHITE, Color.parseColor("white"))
+    }
+
+    @Test fun dialogsAndToastsAreRecordedNotShown() {
+        ExtensionPrompts.drain()
+        AlertDialog.Builder(null).setTitle("Support the repo").setMessage("Watch an ad").show()
+        Toast.makeText(null, "Domain changed", Toast.LENGTH_SHORT).show()
+        // Called from the app's own class loader: no extension to attribute them to.
+        assertEquals(listOf(ExtensionPrompts.Prompt("dialog", "Support the repo — Watch an ad", null),
+            ExtensionPrompts.Prompt("toast", "Domain changed", null)), ExtensionPrompts.drain())
     }
 }
