@@ -1,36 +1,41 @@
-# Configuration du catalogue
+# Catalogue setup
 
-Le wizard configure les langues et les catégories vidéo avant de télécharger les extensions. Le même menu est accessible depuis **Découvrir → Configurer le catalogue** et **Réglages → Général → Configurer le catalogue**.
+The setup wizard asks for languages and video categories before downloading extensions. The same screen is available from **Discover → Set up the catalogue** and **Settings → General → Set up the catalogue**.
 
-La sélection recommandée privilégie les paquets et origines répertoriés dans `CatalogCuration`, choisis d'après la mesure des extensions (`ProviderSurveyInstrumentedTest`) : Movix, Frembed (yorik100 et le dépôt français) et Xalaflix. Seuls les catalogues français sont recommandés pour l'instant : les extensions VO et anime ne sont pas encore évaluées. AfterDark ne fournit aucun lien jouable et son site affiche une vérification pendant la lecture ; FsMirrorLol n'apportait aucun titre absent des autres et ses pages ne sont plus exploitables ; Coflix, Flemmix et FrenchAnime ne trouvaient plus aucun titre lors de la mesure du 26/10/2026. Ils ne sont plus recommandés. Les filtres de langues, catégories, statut et compatibilité restent appliqués. Décocher cette sélection donne accès aux autres extensions vidéo du catalogue. Les paquets intrusifs AllForU/All4U et les dépôts de jeux identifiés sont exclus ; les utilitaires ne sont pas installés automatiquement.
+The recommended selection only installs the packages and origins listed in `CatalogCuration`. They are chosen from the extension survey (`ProviderSurveyInstrumentedTest`): Movix, Frembed (yorik100 and the French repository) and Xalaflix. For now only French catalogues are recommended; original-version and anime extensions have not been evaluated yet. The following are not recommended:
 
-Le français et l’anglais sont proposés en tête, les autres langues proviennent des métadonnées des extensions. La langue d’une extension ne garantit pas celle des pistes audio : VF/VOST se choisit dans le lecteur.
+- AfterDark: no playable links, and its site shows a verification page during playback;
+- FsMirrorLol: offers no title the others lack, and its pages can no longer be read;
+- Coflix, Flemmix and FrenchAnime: found no title in the 2026-10-26 survey.
 
-**Mettre à jour (N)** installe ou actualise les paquets correspondant à la sélection, en conservant ceux déjà à jour. Les échecs sont isolés et signalés. Relancer l’action permet de réessayer. Le wizard ne supprime pas les fichiers existants. Les catégories qu’il ne gère pas et les autres préférences natives sont préservées.
+Language, category, status and compatibility filters still apply. Unticking the recommended selection gives access to the other video extensions of the catalogue. Known intrusive packages (AllForU/All4U) and game repositories are excluded; utilities are never installed automatically.
+
+French and English are listed first; other languages come from the extensions' metadata. An extension's language does not guarantee its audio tracks: VF/VOST is chosen in the player.
+
+**Update (N)** installs or refreshes the packages that match the selection and keeps those already up to date. Failures are isolated and reported; running the action again retries them. The wizard never deletes existing files, and it preserves the categories it does not manage and the other native preferences.
 
 ## Architecture
 
-- `CatalogIndex` utilise l’index public de MegaRepo et les dépôts déjà configurés, sans exécuter MegaProvider.
-- `CatalogInstaller` borne les lectures simultanées et les délais. Les téléchargements utilisent `PluginManager`, les empreintes publiées et le remplacement atomique des fichiers.
-- `CatalogSelection` sélectionne les paquets selon langue, type vidéo, statut et version d’API. Un même paquet miroir n’est installé qu’une fois, en privilégiant son origine déjà installée.
-- `CatalogPreferences` ne sauvegarde que les choix de langues, de catégories du catalogue et de sélection recommandée.
-- Le chargeur conserve les protections contre les paquets intrusifs connus. Les paquets provisionnés par le wizard restent soumis à sa sélection recommandée. Les installations manuelles suivent le chargement natif ; une installation explicite depuis le menu des extensions retire le paquet de la gestion automatique du wizard.
-- Aucun changement de l’API des extensions, de leurs interfaces d’épisodes ou de `loadLinks()`.
+- `CatalogIndex` reads the public MegaRepo index and the repositories already configured, without running MegaProvider.
+- `CatalogInstaller` limits concurrent reads and their duration. Downloads go through `PluginManager`, with published checksums and atomic file replacement.
+- `CatalogSelection` picks packages by language, video type, status and API version. A package mirrored in several repositories is installed once, preferring the origin already installed.
+- `CatalogPreferences` only stores the language, catalogue category and recommended-selection choices.
+- The loader keeps its protections against known intrusive packages. Packages installed by the wizard follow its recommended selection. Manual installs follow the native loader; installing a package explicitly from the extensions menu removes it from the wizard's management.
+- The extension API is unchanged: same episode interfaces, same `loadLinks()`.
 
-## Découvrir et Voir plus
+## Discover and See more
 
-Découvrir agrège les films, séries et catégories vidéo disponibles. Les œuvres compatibles sont fusionnées avec leurs bindings d’origine. Les recommandations films/séries reposent sur l’historique et les éléments déjà vus sont écartés.
+Discover merges the films, series and video categories available. Matching works are merged with their original bindings. Film and series recommendations come from the viewing history, and works already watched are left out.
 
-Chaque rubrique affiche 24 cartes dans l’accueil. **Voir plus** ouvre une grille sur plusieurs colonnes. **Charger davantage** demande les pages suivantes des sections ayant contribué à la rubrique, en conservant la déduplication et les bindings canoniques.
+Each home row shows 24 cards. **See more** opens a multi-column grid. **Load more** requests the next pages of the sections that fed the row, keeping deduplication and canonical bindings.
 
-La navigation verticale de cette grille utilise le gestionnaire Android standard pour faire défiler les cartes hors écran à la télécommande. Le compteur indique le nombre de titres et un chargement réussi place le focus sur les nouvelles cartes. Les erreurs proposent une reprise ; une page répétée arrête sa section. Une action peut explorer jusqu’à trois lots de pages lorsqu’ils ne donnent que des variantes d’œuvres déjà affichées.
+Vertical navigation in the grid uses Android's standard focus handling, so the remote scrolls to off-screen cards. The counter shows the number of titles, and after a successful load the focus moves to the new cards. Errors offer a retry; a page that repeats stops its section. One action can go through up to three batches of pages when they only bring variants of works already shown.
 
-Les requêtes sont bornées à quatre fournisseurs simultanés, huit secondes par tentative, vingt pages par section et 500 cartes par rubrique. Fermer la grille annule ses requêtes. Un changement de profil ou de catalogue empêche les anciennes réponses de modifier la nouvelle page.
+Requests are limited to four providers at a time, eight seconds per attempt, twenty pages per section and 500 cards per row. Closing the grid cancels its requests. Changing profile or catalogue prevents earlier responses from updating the new page.
 
-## Vérification
+## Checks
 
 ```bash
-source ~/.config/cloudstream/env.sh
 ./gradlew :shared:jvmTest :app:testStableDebugUnitTest \
   :app:assembleStableDebug :app:assembleStableDebugAndroidTest \
   --max-workers=4 --console=plain
@@ -38,4 +43,4 @@ ANDROID_SERIAL=192.0.2.10:5555 tools/catalog-fixture.sh --skip-build
 ANDROID_SERIAL=192.0.2.10:5555 tools/home-shelves-fixture.sh --skip-build
 ```
 
-Les tests utilisent des films et séries fictifs et des profils temporaires. Le scénario catalogue vérifie aussi les métadonnées de dépôts, un téléchargement local à mauvaise empreinte, la conservation d’une archive valide, l’enregistrement d’une archive déjà téléchargée et le parcours initial langue → catalogue → disposition. Le scénario de grille vérifie le déplacement réel du focus au-delà des douze premières cartes, le défilement après chargement, le compteur, la reprise et la conservation des résultats à la réouverture.
+The tests use fictional films and series and temporary profiles. The catalogue scenario also checks repository metadata, a local download with a wrong checksum, keeping a valid archive, registering an archive already downloaded, and the first-run flow (language → catalogue → layout). The grid scenario checks that focus really moves past the first twelve cards, scrolling after a load, the counter, retries, and that results are kept when the grid is reopened.

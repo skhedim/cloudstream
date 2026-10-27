@@ -1,39 +1,65 @@
-# Publication de CloudStream Skhedim
+# KloudStream releases
 
-Le fork public est `skhedim/cloudstream`, branche principale `main`. `upstream` conserve le dépôt officiel. Les bibliothèques et namespaces restent ceux de CloudStream pour préserver l'API des extensions.
+KloudStream is published from `skhedim/cloudstream`, branch `main`. The `upstream` remote is the official repository (`recloudstream/cloudstream`). Libraries and namespaces stay CloudStream's, so the extension API is unchanged.
 
-## Installation et mises à jour
+## Install and updates
 
-Installer l'APK depuis [la dernière release](https://github.com/skhedim/cloudstream/releases/latest). Son nom est la version, par exemple `1.0.1.apk`. Le paquet de distribution est `com.lagradost.cloudstream3.skhedim`, nommé CloudStream Skhedim. Il cohabite avec l'application officielle et le paquet de développement `com.lagradost.cloudstream3.debug`.
+Install the APK from [the latest release](https://github.com/skhedim/cloudstream/releases/latest). Its file name is the version, for example `1.0.4.apk`. The package is `com.lagradost.cloudstream3.skhedim`, labelled KloudStream (`app/src/release`). It installs next to official CloudStream and the development package `com.lagradost.cloudstream3.debug`.
 
-La première installation est distincte : exporter une sauvegarde depuis l'ancienne application puis la restaurer dans celle-ci pour transférer l'historique et les réglages. Les prochaines mises à jour conservent les données de ce paquet grâce à sa signature permanente. L'autorisation Android d'installer depuis cette application peut être nécessaire.
+The first install starts with empty data: export a backup from the other app and restore it here to bring history and settings. Later updates keep this package's data because every release is signed with the same key. Android may ask for permission to install from the app.
 
-Les deux mécanismes de mise à jour de CloudStream consultent exclusivement ce fork. Le mécanisme courant sélectionne l'APK dont le nom correspond au tag, vérifie le digest GitHub lorsqu'il est fourni, et compare les versions numériquement pour éviter les réinstallations et retours en arrière. Android vérifie aussi la signature de l'APK. Il n'y a qu'un canal de distribution, stable.
+Both of CloudStream's update mechanisms only check this repository. The updater picks the APK whose name matches the tag, checks GitHub's digest when one is provided, and compares versions numerically, so it never reinstalls or downgrades. Android also verifies the APK signature. There is one channel, stable.
 
 ## CI
 
-`.github/workflows/fork-release.yml` se déclenche à chaque push sur `main`, ou manuellement depuis Actions sur cette branche. Il vérifie l'ABI des extensions, exécute les tests JVM partagés et Android locaux, construit l'APK signé, le vérifie avec `apksigner`, puis publie une release avec `SHA256SUMS`. Les releases sont publiques, sans connexion nécessaire au téléchargement. Les anciens workflows de publication officiels sont réservés au dépôt officiel.
+- `.github/workflows/fork-release.yml` runs on every push to `main`, or manually from Actions. It checks the extension ABI, runs the shared JVM tests and the Android unit tests, and builds the signed APK. It verifies the APK with `apksigner`, then publishes a public release with `SHA256SUMS`.
+- `.github/workflows/fork-checks.yml` runs the same checks on pull requests to `main` and builds a debug APK, without access to the signing key.
+- The upstream workflows (pre-release, archive, Dokka, locales, instrumented tests, pull requests) keep their original content. A single `if: github.repository == 'recloudstream/cloudstream'` line stops them from running here.
 
-La version est `1.0.<github.run_number>`, le code Android `1000000 + github.run_number`, et le tag `v1.0.<github.run_number>`. Ne pas renommer ni remplacer ce workflow sans maintenir la progression du compteur. Une nouvelle exécution manuelle crée une nouvelle version ; relancer un job existant ne remplace pas une release publiée. Les publications sont sérialisées pour ne pas faire reculer la dernière release.
+The version is `1.0.<run number>`, the Android version code `1000000 + run number`, and the tag `v1.0.<run number>`. Do not rename or replace the release workflow: that would reset the counter. A new manual run creates a new version; re-running a job never replaces a published release. Publications are serialized, so the latest release cannot go backwards.
 
-Les pull requests exécutent les contrôles et construisent un APK de développement, sans accès à la signature de distribution. Les tests sur appareil restent disponibles avec les scripts `tools/*fixture.sh` ; les tests CI de publication ne nécessitent pas d'émulateur.
+## Signing
 
-## Signature
+The private key is never in Git. The Actions secrets are `FORK_KEYSTORE_BASE64`, `FORK_KEY_ALIAS`, `FORK_KEY_PASSWORD` and `FORK_STORE_PASSWORD`. Keep a private backup of the key and its passwords: a different key cannot update an existing install. Optional third-party account integrations use the secrets CloudStream already reads (`SIMKL_CLIENT_ID`, `SIMKL_CLIENT_SECRET`, `TRAKT_CLIENT_ID`, `MDL_API_KEY`, `MAL_KEY`, `ANILIST_KEY`).
 
-La clé privée n'est jamais dans Git. Les secrets Actions sont `FORK_KEYSTORE_BASE64`, `FORK_KEY_ALIAS`, `FORK_KEY_PASSWORD`, `FORK_STORE_PASSWORD`. Conserver une sauvegarde privée de la clé et de ses mots de passe : une autre clé ne peut pas mettre à jour une installation existante. Les identifiants optionnels des services tiers utilisent les secrets déjà reconnus par CloudStream (`SIMKL_CLIENT_ID`, `SIMKL_CLIENT_SECRET`, `TRAKT_CLIENT_ID`, `MDL_API_KEY`, `MAL_KEY`, `ANILIST_KEY`).
+## Keeping up with upstream
 
-## Build local
+`main` is CloudStream's `master` plus the KloudStream commits on top. To take a new upstream version:
 
-JDK 17, Android SDK et plateforme indiquée dans `gradle/libs.versions.toml` sont nécessaires. Les builds de développement conservent le paquet et les scripts existants :
+```sh
+git fetch upstream
+git switch main
+git rebase upstream/master
+./gradlew :library:checkKotlinAbi :shared:jvmTest :app:testStableDebugUnitTest :app:assembleStableDebug
+git push --force-with-lease origin main
+```
+
+The push publishes a new release; version numbers come from the run counter, so rebasing never changes them.
+
+KloudStream keeps upstream files as close to the original as possible so rebases stay simple:
+
+- **Fork-only files, which never conflict**: `.github/README.md` (shown instead of `README.md`), `.github/workflows/fork-*.yml`, `app/src/release/` (app name), `shared/src/jvmCommonMain/` (aggregation engine), `ui/*/aggregation/`, `ui/catalog/`, `docs/`, `tools/`.
+- **Small edits to upstream files**: the `if:` line in upstream workflows, and in `app/build.gradle.kts` the signing, version and package suffix.
+- **Integration points that may need attention**, by size of change:
+  - home: `HomeViewModel`, `HomeFragment`, the row adapters and `homepage_parent*.xml`;
+  - search: `SearchViewModel`, `SearchFragment`, `QuickSearchFragment`, `SearchAdaptor`;
+  - player: `GeneratorPlayer`, `PlayerGeneratorViewModel`, `RepoLinkGenerator`;
+  - result page: `ResultViewModel2`, `ResultFragmentTv`;
+  - TV focus in `LinearListLayout`, extension repositories in `AndroidRepositoryManager`;
+  - the updater: `GithubReleases`, `InAppUpdater`.
+
+## Local builds
+
+JDK 17, the Android SDK and the platform named in `gradle/libs.versions.toml` are required. Development builds keep the debug package and the existing scripts:
 
 ```sh
 ./gradlew :shared:jvmTest :app:testStableDebugUnitTest :app:assembleStableDebug
 ```
 
-Pour construire une distribution signée, définir `SIGNING_STORE_FILE`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`, `SIGNING_STORE_PASSWORD` dans l'environnement privé, puis exécuter :
+To build a signed release locally, set `SIGNING_STORE_FILE`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD` and `SIGNING_STORE_PASSWORD` in a private environment, then run:
 
 ```sh
 ./gradlew :app:assembleStableRelease -PforkVersionName=1.0.0 -PforkVersionCode=1000000
 ```
 
-Les versions locales par défaut (`1.0.0`) précèdent toutes les versions CI. Ne pas installer une version locale avec un code supérieur aux publications futures.
+The local default version (`1.0.0`) is lower than every CI version. Never install a local build with a higher version code than future releases.

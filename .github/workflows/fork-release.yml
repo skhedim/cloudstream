@@ -75,8 +75,8 @@ jobs:
         run: |
           tag="v$VERSION_NAME"
           {
-            printf 'CloudStream Skhedim %s\n\n' "$VERSION_NAME"
-            printf 'Discover, aggregated search, canonical episodes and multi-provider playback.\n\n'
+            printf 'KloudStream %s\n\n' "$VERSION_NAME"
+            printf 'One catalogue across providers, unified search and verified multi-provider playback.\n\n'
             printf 'Commit: %s\n\n' "$GITHUB_SHA"
             git log -1 --format='%s%n%n%b'
             printf '\nInstall the APK below. Future updates are offered in the app from this repository.\n'
@@ -86,7 +86,7 @@ jobs:
             echo 'This version is already published; dispatch a new run to publish another version.'
           else
             if [[ "$existing_draft" != true ]]; then
-              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "CloudStream Skhedim $VERSION_NAME" --notes-file "$RUNNER_TEMP/release-notes.md" --draft
+              gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "KloudStream $VERSION_NAME" --notes-file "$RUNNER_TEMP/release-notes.md" --draft
             fi
             gh release upload "$tag" --repo "$GITHUB_REPOSITORY" --clobber "dist/$VERSION_NAME.apk#Android APK" dist/SHA256SUMS
             latest_tag=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)

@@ -1,19 +1,7 @@
-# CloudStream Skhedim
-
-Version personnelle de [CloudStream](https://github.com/recloudstream/cloudstream), avec un catalogue Découvrir agrégé, recherche unifiée, recommandations, épisodes canoniques et lecture depuis plusieurs fournisseurs. Les extensions existantes restent compatibles.
-
-**[Télécharger le dernier APK](https://github.com/skhedim/cloudstream/releases/latest)** · [Builds](https://github.com/skhedim/cloudstream/actions/workflows/fork-release.yml) · [Catalogue](docs/catalog-setup.md) · [Architecture](docs/aggregated-search.md)
-
-Chaque push sur `main` lance les tests puis publie un APK signé dans les releases publiques. Les mises à jour dans l'application utilisent exclusivement `skhedim/cloudstream`. Le paquet `com.lagradost.cloudstream3.skhedim` cohabite avec CloudStream officiel et la version de développement ; l'installation initiale ne reprend pas automatiquement leurs données. Utiliser la sauvegarde/restauration intégrée pour transférer ses préférences et son historique.
-
-Voir [la documentation de publication](docs/releases.md) pour les versions, la signature et les builds locaux. Les intégrations de comptes tiers nécessitent leurs propres identifiants API ; les secrets officiels ne sont pas fournis avec ce fork.
-
----
-
 # CloudStream
 
 **⚠️ Warning: By default, this app doesn't provide any video sources; you have to install extensions to add functionality to the app.**
-<p align="left"><a href="https://github.com/skhedim/cloudstream/releases/latest"><img src=".github/images/download-cloudstream-pre.png" alt="Download CloudStream Skhedim" width=430/></a></p>
+<p align="left"><a href="https://github.com/recloudstream/cloudstream/releases/download/pre-release/app-prerelease-release.apk"><img src=".github/images/download-cloudstream-pre.png" alt="Download Cloudstream Pre-Release" width=430/></a></p>
 
 [![Discord](https://invidget.switchblade.xyz/5Hus6fM)](https://discord.gg/5Hus6fM)
 
