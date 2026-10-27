@@ -26,9 +26,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="12dp"
+            android:focusable="false"
             android:minHeight="48dp"
-            android:nextFocusDown="@id/home_child_recyclerview"
-            android:text="@string/home_show_all" />
+            android:text="@string/home_show_all"
+            android:visibility="gone" />
     </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView
@@ -37,7 +38,7 @@
         android:layout_height="wrap_content"
         android:clipToPadding="false"
         android:descendantFocusability="afterDescendants"
-        android:nextFocusUp="@id/home_child_show_all"
+        android:nextFocusUp="@id/home_child_more_info"
         android:orientation="horizontal"
         android:paddingStart="8dp"
         android:paddingEnd="5dp"

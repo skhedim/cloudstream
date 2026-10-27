@@ -165,6 +165,10 @@ class HomeViewModel : ViewModel() {
     private var discoveryNative: Set<ProviderKey>? = null
     @Volatile private var discoveryTrending: Map<com.lagradost.cloudstream4.domain.media.ExternalMediaId, Int> = emptyMap()
     private var heroGeneration = -1L
+    /** Works needed before the hero is built without waiting for every feed. */
+    private val HERO_MIN_CARDS = 5
+    /** Recommendations of the visible page, shown again while a history change recomputes them. */
+    private var lastSuggestions: List<RecommendationBatch> = emptyList()
 
     private suspend fun recommendationPlan(repos: List<APIRepository>): RecommendationSnapshot = withContext(Dispatchers.IO) {
         val signals = mutableSetOf<HistorySignal>()
@@ -234,6 +238,9 @@ class HomeViewModel : ViewModel() {
         if (!forceReload && account == discoveryAccount && sameHistory && identities == discoveryProviders &&
             (onGoingLoad?.isActive == true || page.value is Resource.Success)) return
         val enteringDiscovery = discoveryProviders == null
+        // A history change (resume entry removed, playback) or a refresh of the visible page keeps
+        // the hero and the For you rows until their replacements are ready: no jumping layout.
+        val keepVisible = !enteringDiscovery && account == discoveryAccount && page.value is Resource.Success
         discoveryAccount = account
         discoveryHistory = snapshot.history
         discoveryProviders = identities
@@ -246,14 +253,15 @@ class HomeViewModel : ViewModel() {
         isCurrentlyLoadingName = "__aggregated_home__"
         _apiName.value = "__aggregated_home__"
         _randomItems.value = emptyList()
-        _preview.value = Resource.Failure(false, "Content shelves")
+        // Loading keeps the featured frame's place (fixed height on TV) until the hero is ready.
+        if (!keepVisible) _preview.value = Resource.Loading()
         _discoveryStatus.value = ctx.getString(R.string.home_loading_news)
         if (enteringDiscovery || page.value !is Resource.Success) _page.value = Resource.Loading()
         onGoingLoad = viewModelScope.launch {
             val projector = AggregatedHomeProjector()
             var latestResults = emptyList<AggregatedHomeLoader.Result>()
             var finishedCount = 0
-            var suggestions = emptyList<RecommendationBatch>()
+            var suggestions = if (keepVisible) lastSuggestions else emptyList()
             var personalization = plan
             var pager: HomeShelfPager? = null
             val publication = Mutex()
@@ -290,6 +298,7 @@ class HomeViewModel : ViewModel() {
                         personalization = updated.plan
                         discoveryHistory = updated.history
                         suggestions = loaded
+                        lastSuggestions = loaded
                         publishDiscovery(projector, latestResults, finishedCount, repos.size, generation, account, suggestions, personalization, pager)
                     }
                 }
@@ -361,14 +370,18 @@ class HomeViewModel : ViewModel() {
                 val title = ctx.getString(row.shelf.title)
                 val personalized = row.shelf == HomeShelf.ForYou || row.shelf == HomeShelf.ForYouSeries
                 title to ExpandableHomepageList(HomePageList(title, row.cards), 1,
-                    !personalized && row.cards.size < 500 && (pager?.hasMore(row.cards) ?: (requested > 0)),
+                    // A Top 10 is complete by definition: no "see more".
+                    !personalized && row.shelf != HomeShelf.Top10 && row.cards.size < 500 && (pager?.hasMore(row.cards) ?: (requested > 0)),
                     previewLimit = 24, loadFailed = pager?.failed == true)
             }
             expandable.clear(); expandable.putAll(mapped)
             _page.value = Resource.Success(mapped)
             val featured = (rows.firstOrNull { it.shelf == HomeShelf.Top10 } ?: rows.firstOrNull { it.shelf == HomeShelf.Recent })?.cards
-            // Once every feed answered; trends arriving later rebuild it with this week's top works.
-            if (featured != null && finished >= requested) buildHero(featured, generation, rows.any { it.shelf == HomeShelf.Top10 })
+            // As soon as a few works are known; trends arriving later rebuild it once with this week's top works.
+            if (featured != null && (finished >= requested || featured.size >= HERO_MIN_CARDS))
+                buildHero(featured, generation, rows.any { it.shelf == HomeShelf.Top10 }, finished >= requested)
+            else if (featured == null && finished >= requested && _preview.value is Resource.Loading)
+                _preview.value = Resource.Failure(false, "Content shelves")
             val count = rows.flatMap { it.cards }.distinctBy { it.media.id }.size
             _discoveryStatus.value = when {
                 finished < requested -> ctx.getString(R.string.home_updating_news)
@@ -403,7 +416,8 @@ class HomeViewModel : ViewModel() {
      */
     private var heroFromTrends = false
 
-    private fun buildHero(cards: List<AggregatedSearchResponse>, generation: Long, fromTrends: Boolean) {
+    /** @param final every feed answered: without artwork now, the featured frame is given up. */
+    private fun buildHero(cards: List<AggregatedSearchResponse>, generation: Long, fromTrends: Boolean, final: Boolean) {
         if (heroGeneration == generation && (heroFromTrends || !fromTrends)) return
         heroGeneration = generation
         heroFromTrends = fromTrends
@@ -417,9 +431,15 @@ class HomeViewModel : ViewModel() {
                     .awaitAll().filterNotNull().filter { it.second.backdropUrl != null }.take(6)
             }
             val responses = highlights.mapNotNull { (card, highlight) -> runCatching { heroResponse(card, highlight) }.getOrNull() }
-            if (generation == discoveryGeneration && responses.isNotEmpty()) {
+            if (generation != discoveryGeneration) return@launch
+            if (responses.isNotEmpty()) {
                 previewResponses.clear(); previewResponses.addAll(responses)
                 _preview.postValue(Resource.Success(false to responses))
+            } else {
+                // No featured artwork yet: try again with the next publication; once every feed
+                // answered (metadata unavailable), give the frame's space back.
+                heroGeneration = -1L
+                if (final && _preview.value is Resource.Loading) _preview.postValue(Resource.Failure(false, "Content shelves"))
             }
         }
     }

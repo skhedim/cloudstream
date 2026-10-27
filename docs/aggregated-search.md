@@ -258,7 +258,16 @@ is disabled: some extensions (AfterDark) open verification dialogs from `loadLin
   **Series for you**, then the genre rows. `DiscoveryCatalog` never creates cards on its own.
 - The hero shows the first Top 10 work (else the first recent one) with TMDB backdrop, title
   logo, overview, rating, year, runtime and genres in the viewer's language; the hero and
-  Continue watching sit at the top of the page.
+  Continue watching sit at the top of the page. It is built once five works are known (not after
+  every feed), and its frame keeps its place while loading, so the page never jumps when it
+  arrives.
+- TV navigation: Down from the top buttons goes to the hero, Continue watching, then the rows
+  (hidden parts are skipped). Each row keeps its place: moving up or down lands on the card last
+  focused in that row (else its first visible card), never on the geometrically aligned one,
+  which used to scroll the row. Preview rows end with a "See more" card that opens the whole
+  shelf (no header button on TV; the Top 10 has none).
+- Removing a Continue watching entry (or any history change) recomputes For you without hiding
+  the hero or the For you rows meanwhile. The status line follows the header when scrolling.
 
 ### Recommended extensions (survey)
 `ProviderSurveyInstrumentedTest` (androidTest) measures each installed extension on 47 TMDB
@@ -271,7 +280,8 @@ catalogue (`CatalogCuration`) follows the results:
 | Movix | 47/47 | 100 % (all ≥ 720p) | 6 | yes |
 | Frembed (yorik100) | 98 % | 83 % | 0 | yes, backup |
 | Xalaflix | 85 % | 72 % | 0 | yes, backup |
-| AfterDark, Frembed (French repo) | 100 % | — (no links) | — | yes, catalogue and home rows |
+| Frembed (French repo) | 100 % | — (no links) | — | yes, catalogue and home rows |
+| AfterDark | 100 % | — (no links) | — | no: verification page during playback |
 | FsMirrorLol | 74 % | 64 % (2 titles ≥ 720p) | 0 | no |
 
 FsMirrorLol's pages also fail verification since its site changed (movies are declared as

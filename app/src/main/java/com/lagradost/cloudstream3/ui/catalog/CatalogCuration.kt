@@ -18,19 +18,19 @@ object CatalogCuration {
      * Recommended extensions, from the provider survey (ProviderSurveyInstrumentedTest, 47 TMDB
      * titles, 2026-10-26): every playable link checked for reachability and real duration.
      * - Movix: every title playable in 720p+; Frembed (yorik100) 83 %, Xalaflix 72 % as backups.
-     * - AfterDark, Frembed FR (mouradchaouche): no playable links, but they find every title with
-     *   TMDB IDs and feed the home's popular rows; opening one of their cards finds the work at the
-     *   providers above (completion). The engine never waits on their links.
+     * - Frembed FR (mouradchaouche): no playable links, but it finds every title with TMDB IDs and
+     *   feeds the home's popular rows; opening one of its cards finds the work at the providers
+     *   above (completion).
      * French catalogues only for now; original-version and anime extensions are not reviewed yet.
-     * Not recommended: FsMirrorLol (no title the others lack, mostly 360p, its movie pages now
-     * declare series and its series pages have no title), and Coflix, Flemmix and FrenchAnime,
-     * which found nothing.
+     * Not recommended: AfterDark (no playable links, and its site shows a verification page
+     * during playback, which breaks invisible providers), FsMirrorLol (no title the others lack,
+     * mostly 360p, its movie pages now declare series and its series pages have no title), and
+     * Coflix, Flemmix and FrenchAnime, which found nothing.
      */
     private val reviewed = mapOf(
         "movix" to listOf("kraptor123cskarma"),
         "frembed" to listOf("yorik100cloudstream", "mouradchaouchecloudstreamfrenchrepo"),
         "xalaflix" to listOf("yorik100cloudstream"),
-        "afterdark" to listOf("yorik100cloudstream"),
     )
     fun blocked(name: String, origin: String, version: Int = Int.MAX_VALUE): Boolean =
         excludedOrigins.any { it in key(origin) } ||

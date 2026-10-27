@@ -853,6 +853,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                         if (view == null) {
                             // The first view is not visible, so we can assume we have scrolled past it
                             scrollParent.isVisible = false
+                            // The discovery status line follows the header like the top buttons
+                            // (alpha: its visibility belongs to the status observer).
+                            binding.homeAggregatedStatus.alpha = 0f
                         } else {
                             // A bit weird, but this is a major limitation we are working around here
                             // 1. We cant have a real parent to the recyclerview as android cant layout that without lagging
@@ -870,6 +873,8 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                             view.getLocationInWindow(rect)
                             scrollParent.isVisible = true
                             scrollParent.translationY = rect[1].toFloat() - 60.toPx
+                            binding.homeAggregatedStatus.alpha = 1f
+                            binding.homeAggregatedStatus.translationY = scrollParent.translationY
 
                             // Move the TV layout real time clock out of the way too
                             // We check if we have the correct layout and if the clock is enabled
@@ -921,9 +926,9 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>(
                     homePreviewReloadProvider.contentDescription = getString(R.string.home_refresh_news)
                     homeChangeApi.nextFocusRightId = R.id.home_preview_reload_provider
                     homePreviewReloadProvider.nextFocusLeftId = R.id.home_change_api
-                    listOf(homeChangeApi, homePreviewReloadProvider, homePreviewSearchButton).forEach {
-                        it.nextFocusDownId = R.id.home_master_recycler
-                    }
+                    // Down keeps the layout's chain (featured work, Continue watching, library,
+                    // rows; hidden ones are skipped). Targeting the list itself landed on the hero's
+                    // hidden "previous" view, which sends focus to the navigation rail.
                 }
                 homePreviewReloadProvider.isGone = (apiName == noneApi.name)
                 homePreviewSearchButton.isGone = (apiName == noneApi.name)

@@ -75,6 +75,12 @@ open class ParentItemAdapter(
         super.submitList(list?.sortedBy { it.list.list.isEmpty() }, commitCallback)
     }
 
+    /** A preview row with more to show ends with a "see more" card (TV); rows without a preview limit page in place. */
+    private fun HomeChildItemAdapter.bindMore(item: HomeViewModel.ExpandableHomepageList) {
+        moreCallback = { moreInfoClickCallback(item) }
+        showMore = item.previewLimit != Int.MAX_VALUE && (item.list.list.size > item.previewLimit || item.hasNext)
+    }
+
     override fun onUpdateContent(
         holder: ViewHolderState<Bundle>,
         item: HomeViewModel.ExpandableHomepageList,
@@ -85,6 +91,7 @@ open class ParentItemAdapter(
         (binding.homeChildRecyclerview.adapter as? HomeChildItemAdapter)?.apply {
             hasNext = item.hasNext && item.previewLimit == Int.MAX_VALUE
             submitList(item.list.list.take(item.previewLimit))
+            bindMore(item)
         }
         binding.homeChildShowAll.setOnClickListener { moreInfoClickCallback(item) }
         if (isLayout(PHONE or EMULATOR)) binding.homeChildMoreInfo.setOnClickListener { moreInfoClickCallback(item) }
@@ -116,6 +123,7 @@ open class ParentItemAdapter(
                     isHorizontal = info.isHorizontalImages
                     hasNext = item.hasNext && item.previewLimit == Int.MAX_VALUE
                     submitList(item.list.list.take(item.previewLimit))
+                    bindMore(item)
                 }
             } else {
                 currentAdapter.apply {
@@ -125,6 +133,7 @@ open class ParentItemAdapter(
                     nextFocusUp = homeChildRecyclerview.nextFocusUpId
                     nextFocusDown = homeChildRecyclerview.nextFocusDownId
                     submitIncomparableList(item.list.list.take(item.previewLimit))
+                    bindMore(item)
                 }
             }
 

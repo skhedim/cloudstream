@@ -9,6 +9,8 @@ import androidx.preference.PreferenceManager
 import androidx.viewbinding.ViewBinding
 import com.lagradost.cloudstream3.R
 import com.lagradost.cloudstream3.SearchResponse
+import com.lagradost.cloudstream3.databinding.HomeMoreGridBinding
+import com.lagradost.cloudstream3.databinding.HomeMoreGridExpandedBinding
 import com.lagradost.cloudstream3.databinding.HomeRemoveGridBinding
 import com.lagradost.cloudstream3.databinding.HomeRemoveGridExpandedBinding
 import com.lagradost.cloudstream3.databinding.HomeResultGridBinding
@@ -55,7 +57,8 @@ class ResumeItemAdapter(
     clickCallback = clickCallback
 ) {
     // As there is no popup on TV we instead use the footer to clear
-    override val footers = if (isLayout(TV or EMULATOR)) 1 else 0
+    override val footers get() = if (isLayout(TV or EMULATOR)) 1 else 0
+    override fun customFooterViewType() = 0
 
     override fun onCreateFooter(parent: ViewGroup): ViewHolderState<Boolean> {
         val expanded = parent.context.isBottomLayout()
@@ -121,6 +124,43 @@ open class HomeChildItemAdapter(
             })
     ) {
     var hasNext: Boolean = false
+
+    /** Opens the whole shelf; shown as a last card on TV, where a header button breaks row-to-row focus. */
+    var moreCallback: (() -> Unit)? = null
+
+    /** Whether the row has more than it shows. Toggling it adds or removes the last card. */
+    var showMore: Boolean = false
+        set(value) {
+            val had = footers
+            field = value
+            val has = footers
+            if (has > had) notifyItemInserted(itemCount - 1) else if (has < had) notifyItemRemoved(itemCount)
+        }
+
+    override val footers get() = if (showMore && isLayout(TV or EMULATOR)) 1 else 0
+    override fun customFooterViewType() = MORE_FOOTER
+
+    override fun onCreateFooter(parent: ViewGroup): ViewHolderState<Boolean> {
+        val inflater = LayoutInflater.from(parent.context)
+        val binding = if (parent.context.isBottomLayout()) HomeMoreGridExpandedBinding.inflate(inflater, parent, false)
+            else HomeMoreGridBinding.inflate(inflater, parent, false)
+        return HomeScrollViewHolderState(binding)
+    }
+
+    override fun onBindFooter(holder: ViewHolderState<Boolean>) {
+        when (val binding = holder.view) {
+            is HomeMoreGridBinding -> updateLayoutParms(binding.backgroundCard, setWidth, setHeight)
+            is HomeMoreGridExpandedBinding -> updateLayoutParms(binding.backgroundCard, setWidth, setHeight)
+        }
+        holder.itemView.apply {
+            isFocusableInTouchMode = isLayout(TV)
+            isFocusable = true
+            nextFocusUp?.let { nextFocusUpId = it }
+            nextFocusDown?.let { nextFocusDownId = it }
+            setOnClickListener { moreCallback?.invoke() }
+        }
+    }
+
     var isHorizontal: Boolean = false
         set(value) {
             field = value
@@ -163,6 +203,9 @@ open class HomeChildItemAdapter(
         // This simply shares the views between all HomeChildItemAdapter
         val sharedPool =
             newSharedPool { setMaxRecycledViews(CONTENT, 20) }
+
+        /** Footer view type of the "see more" card, kept apart from the resume row's "clear" card in the shared pool. */
+        const val MORE_FOOTER = 1
 
         var minPosterSize: Int = 0
         var maxPosterSize: Int = 0
