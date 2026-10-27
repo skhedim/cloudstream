@@ -90,6 +90,7 @@ private fun Shell() {
                     Screen.Home -> HomeScreen(::open, ::openEntry, ::play)
                     Screen.Search -> SearchScreen(::open)
                     Screen.Settings -> SettingsScreen()
+                    Screen.Downloads -> DownloadsScreen()
                     is Screen.Detail -> DetailScreen(screen) { AppModel.navigator.back() }
                 }
                 SearchingOverlay()
@@ -107,6 +108,7 @@ private fun NavRail(screen: Screen) {
         Spacer(Modifier.height(24.dp))
         RailItem(Icons.Filled.Home, "Accueil", screen == Screen.Home || screen is Screen.Detail) { AppModel.navigator.open(Screen.Home) }
         RailItem(Icons.Filled.Search, "Recherche", screen == Screen.Search) { AppModel.navigator.open(Screen.Search) }
+        RailItem(KloudIcons.Download, "Téléchargés", screen == Screen.Downloads) { AppModel.navigator.open(Screen.Downloads) }
         Spacer(Modifier.weight(1f))
         RailItem(Icons.Filled.Settings, "Réglages", screen == Screen.Settings) { AppModel.navigator.open(Screen.Settings) }
     }

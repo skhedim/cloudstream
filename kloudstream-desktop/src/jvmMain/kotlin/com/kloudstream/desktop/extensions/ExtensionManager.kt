@@ -33,7 +33,13 @@ data class InstalledExtension(
     val url: String,
     val repository: String,
     val file: String,
+    /** Added from the settings (not part of the reviewed list): updates never remove it. */
+    val user: Boolean = false,
 )
+
+/** An extension a repository offers, as the settings list it. */
+data class RepositoryPlugin(val internalName: String, val name: String, val version: Int, val url: String,
+    val language: String?, val types: List<String>, val status: Int)
 
 enum class ExtensionState { Installed, Loaded, Failed }
 
@@ -59,6 +65,8 @@ object ExtensionManager {
         val version: Int = 0,
         val status: Int = 1,
         val apiVersion: Int = 1,
+        val language: String? = null,
+        val tvTypes: List<String>? = null,
     )
     private data class Repository(val name: String? = null, val pluginLists: List<String> = emptyList())
     private class Loaded(val plugin: BasePlugin, val loader: URLClassLoader, val file: File)
@@ -113,9 +121,26 @@ object ExtensionManager {
                     AppLog.warn("Could not install or update ${recommended.key}", e)
                 }
             }
-            // Extensions removed from the recommended selection are uninstalled.
+            // Those added by hand are updated from their repository too.
+            for (extension in current.values.filter { it.user }) {
+                try {
+                    val site = plugins.getOrPut(extension.repository) { fetchPlugins(extension.repository) }
+                        .firstOrNull { it.internalName.equals(extension.internalName, true) } ?: continue
+                    if (extension.version >= site.version && File(AppDirs.extensions, extension.file).exists()) continue
+                    val file = File(AppDirs.extensions, extension.file)
+                    val tmp = File(AppDirs.extensions, extension.file + ".part")
+                    tmp.writeBytes(app.get(site.url, cacheTime = 0).body.bytes())
+                    java.util.zip.ZipFile(tmp).use { require(it.getEntry("manifest.json") != null) { "Not an extension" } }
+                    java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+                    current[extension.key] = extension.copy(version = site.version, url = site.url)
+                    changed += extension.key
+                } catch (e: Exception) {
+                    AppLog.warn("Could not update ${extension.key}", e)
+                }
+            }
+            // Extensions removed from the recommended selection are uninstalled; those added by hand stay.
             val keys = ReviewedExtensions.all.map { it.key }.toSet()
-            current.keys.filter { it !in keys }.forEach { key ->
+            current.keys.filter { it !in keys && current[it]?.user != true }.forEach { key ->
                 unloadLocked(key)
                 current.remove(key)?.let { File(AppDirs.extensions, it.file).delete() }
                 changed += key
@@ -123,6 +148,44 @@ object ExtensionManager {
             saveInstalled(current.values.toList())
             changed.filter { it in loaded }.forEach { unloadLocked(it) }
             changed
+        }
+    }
+
+    /** What a repository (its `repo.json` URL) offers; status 0 means its author disabled it. */
+    suspend fun browse(repositoryUrl: String): List<RepositoryPlugin> = withContext(Dispatchers.IO) {
+        fetchPlugins(repositoryUrl.trim()).filter { it.status != 0 && it.apiVersion == 1 }.map {
+            RepositoryPlugin(it.internalName, it.name ?: it.internalName, it.version, it.url, it.language, it.tvTypes.orEmpty(), it.status)
+        }
+    }
+
+    /** Installs and loads an extension chosen in the settings; it is kept and updated like the others. */
+    suspend fun install(repositoryUrl: String, plugin: RepositoryPlugin) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val key = "user-" + plugin.internalName.lowercase().filter(Char::isLetterOrDigit) + "-" +
+                repositoryUrl.hashCode().toUInt().toString(16)
+            val file = File(AppDirs.extensions, "$key.cs3")
+            val tmp = File(AppDirs.extensions, "$key.cs3.part")
+            tmp.writeBytes(app.get(plugin.url, cacheTime = 0).body.bytes())
+            java.util.zip.ZipFile(tmp).use { require(it.getEntry("manifest.json") != null) { "Not an extension" } }
+            unloadLocked(key)
+            java.nio.file.Files.move(tmp.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            val current = installed().filter { it.key != key }
+            saveInstalled(current + InstalledExtension(key, plugin.internalName, plugin.name, plugin.version, plugin.url,
+                repositoryUrl.trim(), file.name, user = true))
+            AppLog.info("Installed ${plugin.internalName} v${plugin.version} from $repositoryUrl")
+        }
+        loadInstalled()
+    }
+
+    /** Removes an extension added by hand. */
+    suspend fun uninstall(key: String) = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val extension = installed().firstOrNull { it.key == key && it.user } ?: return@withLock
+            unloadLocked(key)
+            File(AppDirs.extensions, extension.file).delete()
+            saveInstalled(installed().filter { it.key != key })
+            failures.remove(key)
+            publish()
         }
     }
 

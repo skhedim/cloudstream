@@ -48,6 +48,8 @@ object AppModel {
                 }
                 ExtensionManager.loadInstalled()
                 extensionsReady.complete(Unit)
+                // Unfinished downloads resume once the providers are there.
+                com.kloudstream.desktop.downloads.Downloads.load()
                 _startup.value = Startup.Ready
                 home.load()
                 MainActivity.reloadHomeEvent += { home.load() }

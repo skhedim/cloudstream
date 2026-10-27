@@ -53,6 +53,9 @@ import androidx.compose.ui.unit.sp
 import com.kloudstream.desktop.app.AppModel
 import com.kloudstream.desktop.app.DetailModel
 import com.kloudstream.desktop.app.Screen
+import com.kloudstream.desktop.downloads.DownloadItem
+import com.kloudstream.desktop.downloads.DownloadState
+import com.kloudstream.desktop.downloads.Downloads
 import com.kloudstream.desktop.library.WatchHistory
 import com.lagradost.cloudstream4.aggregation.CanonicalEpisodeRow
 import kotlinx.coroutines.launch
@@ -62,6 +65,7 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
     val model = remember(screen.request) { DetailModel(AppModel.scope, screen.request).also { it.load() } }
     val state by model.state.collectAsState()
     val history by WatchHistory.entries.collectAsState()
+    val downloads by Downloads.items.collectAsState()
     val scope = rememberCoroutineScope()
     val entry = history.firstOrNull { it.identity == state.model?.request?.identity }
     var seasonIndex by remember(state.seasons.size) { mutableIntStateOf(-1) }
@@ -73,6 +77,8 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
         }
     }
     fun play(row: CanonicalEpisodeRow?) = scope.launch { model.playRequest(row)?.let { AppModel.player.play(it) } }
+    fun download(row: CanonicalEpisodeRow?) = scope.launch { model.playRequest(row)?.let { Downloads.enqueue(it, state.poster ?: screen.poster) } }
+    fun downloadOf(episodeKey: String?): DownloadItem? = state.model?.let { m -> downloads.firstOrNull { it.id == Downloads.id(m.request.identity, episodeKey) } }
     // "Lecture" on the home hero: play as soon as the page knows its sources (resume point for series).
     var autoplayed by remember(screen) { androidx.compose.runtime.mutableStateOf(!screen.autoplay) }
     LaunchedEffect(state.model) {
@@ -111,6 +117,7 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                                     val resumeMs = WatchHistory.resumePositionMs(detail.request.identity, null)
                                     PrimaryButton(if (resumeMs > 0) "Reprendre" else "Lecture", Icons.Filled.PlayArrow) { play(null) }
                                     if (resumeMs > 0) Text("à ${formatTime(resumeMs)}", color = Kloud.Muted)
+                                    DownloadButton(downloadOf(null)) { download(null) }
                                 }
                                 else -> {
                                     val resume = model.resumeRow()
@@ -142,15 +149,46 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                 val group = seasons[seasonIndex.coerceIn(0, seasons.lastIndex)]
                 items(group.episodes, key = { "ep:" + it.episode.key }) { row ->
                     val progress = state.model?.let { WatchHistory.progress(it.request.identity, row.episode.key) }
-                    EpisodeItem(row, progress?.let { p -> if (p.durationMs > 0) p.positionMs.toFloat() / p.durationMs else null }) { play(row) }
+                    EpisodeItem(row, progress?.let { p -> if (p.durationMs > 0) p.positionMs.toFloat() / p.durationMs else null },
+                        downloadOf(row.episode.key), { download(row) }) { play(row) }
                 }
             }
         }
     }
 }
 
+/** Download a movie: its state once started (progress, done), else the button. */
 @Composable
-private fun EpisodeItem(row: CanonicalEpisodeRow, progress: Float?, onClick: () -> Unit) {
+private fun DownloadButton(item: DownloadItem?, onDownload: () -> Unit) {
+    when (item?.state) {
+        null -> SecondaryButton("Télécharger", KloudIcons.Download, onDownload)
+        DownloadState.Done -> SecondaryButton("Téléchargé", KloudIcons.DownloadDone) { AppModel.navigator.open(Screen.Downloads) }
+        DownloadState.Failed -> SecondaryButton("Réessayer le téléchargement", KloudIcons.Download) { Downloads.retry(item) }
+        else -> SecondaryButton(if (item.progress > 0) "Téléchargement ${(item.progress * 100).toInt()} %" else "En attente…", KloudIcons.Download) {
+            AppModel.navigator.open(Screen.Downloads)
+        }
+    }
+}
+
+@Composable
+private fun EpisodeDownload(item: DownloadItem?, onDownload: () -> Unit) {
+    Box(Modifier.size(52.dp).clip(RoundedCornerShape(50)).clickable {
+        when (item?.state) { null -> onDownload(); DownloadState.Failed -> Downloads.retry(item); else -> AppModel.navigator.open(Screen.Downloads) }
+    }, contentAlignment = Alignment.Center) {
+        when (item?.state) {
+            DownloadState.Done -> Icon(KloudIcons.DownloadDone, "Téléchargé", tint = Kloud.Accent, modifier = Modifier.size(26.dp))
+            DownloadState.Downloading, DownloadState.Queued -> {
+                CircularProgressIndicator(progress = { item.progress.toFloat().coerceIn(0f, 1f) }, color = Kloud.Accent,
+                    trackColor = Kloud.SurfaceHigh, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+            }
+            else -> Icon(KloudIcons.Download, "Télécharger", tint = if (item?.state == DownloadState.Failed) Kloud.Accent else Kloud.Muted,
+                modifier = Modifier.size(26.dp))
+        }
+    }
+}
+
+@Composable
+private fun EpisodeItem(row: CanonicalEpisodeRow, progress: Float?, download: DownloadItem?, onDownload: () -> Unit, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     Row(Modifier.fillMaxWidth().padding(horizontal = 40.dp, vertical = 4.dp).clip(RoundedCornerShape(10.dp))
@@ -176,6 +214,8 @@ private fun EpisodeItem(row: CanonicalEpisodeRow, progress: Float?, onClick: () 
                 Text(it, color = Kloud.Muted, fontSize = 14.sp, maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 19.sp)
             }
         }
+        Spacer(Modifier.width(12.dp))
+        EpisodeDownload(download, onDownload)
     }
 }
 

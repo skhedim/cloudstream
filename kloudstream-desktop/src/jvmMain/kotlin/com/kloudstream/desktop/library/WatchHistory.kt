@@ -65,6 +65,12 @@ object WatchHistory {
         publish()
     }
 
+    /** Forgets every position and the Continue watching row. */
+    fun clear() {
+        json.keys().forEach { json.set(it, null) }
+        publish()
+    }
+
     private fun publish() {
         _entries.value = json.keys().filter { it.startsWith("item/") }
             .mapNotNull { key -> json.get(key)?.let { runCatching { mapper.treeToValue(it, WatchEntry::class.java) }.getOrNull() } }

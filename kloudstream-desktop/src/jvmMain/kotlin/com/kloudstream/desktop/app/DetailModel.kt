@@ -2,6 +2,8 @@ package com.kloudstream.desktop.app
 
 import com.kloudstream.desktop.library.WatchEntry
 import com.kloudstream.desktop.library.WatchHistory
+import com.kloudstream.desktop.downloads.Downloads
+import com.kloudstream.desktop.player.LocalMedia
 import com.kloudstream.desktop.player.PlayRequest
 import com.lagradost.cloudstream3.Episode
 import com.lagradost.cloudstream4.aggregation.AggregationPlatform
@@ -141,7 +143,7 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
             val minutes = tmdb?.let { runCatching { RuntimeCatalog.movieMinutes(it) }.getOrNull() }
                 ?: model.base.response.duration?.takeIf { it in 20..400 }
             return PlayRequest(history.title, null, model.sources(movie), minutes?.let { it * 60.0 }, false, history,
-                work = PlaybackWork(imdb, tmdbId = tmdb))
+                work = PlaybackWork(imdb, tmdbId = tmdb), local = local(history.identity, null))
         }
         val episodes = model.episodes
         val chosen = row ?: return null
@@ -162,7 +164,13 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
                 episodeTitle = chosen.original.name),
             next = next?.let { { playRequest(it) } },
             work = PlaybackWork(imdb, season.takeIf { !chosen.episode.absolute }, number.takeIf { !chosen.episode.absolute }, tmdb, series = true),
+            local = local(history.identity, chosen.episode.key),
         )
+    }
+
+    /** A finished download of it plays from disk. */
+    private fun local(identity: String, episodeKey: String?): LocalMedia? = Downloads.local(identity, episodeKey)?.let {
+        LocalMedia(it.video!!, it.audio, it.subtitles, it.version, it.quality)
     }
 
     /** The episode to resume: the last one watched (or the next if finished), else the first. */

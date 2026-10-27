@@ -112,7 +112,7 @@ class Mpv private constructor(private val process: Process, private val ipcPath:
                 .flatMap { dir -> names.map { File(dir, it) } }.firstOrNull { it.isFile && it.canExecute() }
         }
 
-        fun start(title: String, fullscreen: Boolean): Mpv {
+        fun start(title: String, fullscreen: Boolean, extra: List<String> = emptyList()): Mpv {
             val exe = executable() ?: throw IllegalStateException("mpv introuvable")
             val id = UUID.randomUUID().toString().take(8)
             val ipc = if (AppDirs.isWindows) "\\\\.\\pipe\\kloudstream-mpv-$id"
@@ -131,7 +131,7 @@ class Mpv private constructor(private val process: Process, private val ipcPath:
                 "--input-default-bindings=yes", "--input-vo-keyboard=yes",
                 "--osd-duration=2500",
                 "--msg-level=all=warn", "--log-file=" + File(AppDirs.logs, "mpv.log").path,
-            ) + System.getProperty("kloudstream.mpvArgs").orEmpty().split(' ').filter { it.isNotBlank() }
+            ) + extra + System.getProperty("kloudstream.mpvArgs").orEmpty().split(' ').filter { it.isNotBlank() }
             AppLog.info("Starting ${exe.path}")
             val process = ProcessBuilder(args).redirectErrorStream(true).start()
             // Drain the output so mpv never blocks on a full pipe.

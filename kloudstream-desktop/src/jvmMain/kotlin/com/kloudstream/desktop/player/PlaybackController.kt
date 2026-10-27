@@ -6,11 +6,14 @@ import com.kloudstream.desktop.library.WatchEntry
 import com.kloudstream.desktop.library.WatchHistory
 import com.lagradost.cloudstream3.SubtitleFile
 import com.lagradost.cloudstream3.USER_AGENT
+import com.lagradost.cloudstream3.utils.ExtractorLink
+import com.lagradost.cloudstream3.utils.ExtractorLinkType
 import com.lagradost.cloudstream4.aggregation.CanonicalSourceLoader
 import com.lagradost.cloudstream4.aggregation.EpisodeSourceBinding
+import com.lagradost.cloudstream4.aggregation.ExternalSubtitles
 import com.lagradost.cloudstream4.aggregation.PlaybackPolicy
 import com.lagradost.cloudstream4.aggregation.PlaybackSource
-import com.lagradost.cloudstream4.aggregation.ExternalSubtitles
+import com.lagradost.cloudstream4.aggregation.PlaybackSourceMetadata
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream4.aggregation.PlaybackVerification
 import com.lagradost.cloudstream4.aggregation.PlaybackWork
@@ -23,6 +26,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,7 +49,13 @@ data class PlayRequest(
     val next: (suspend () -> PlayRequest?)? = null,
     /** For French subtitles when only original-version sources exist. */
     val work: PlaybackWork? = null,
+    /** A finished download: played from disk, without asking the providers. */
+    val local: LocalMedia? = null,
 )
+
+/** A downloaded movie or episode: the video, a separate audio track if any, French subtitles. */
+data class LocalMedia(val video: String, val audio: String? = null, val subtitles: List<String> = emptyList(),
+    val version: SourceVersion? = null, val quality: Int = 0)
 
 sealed interface PlaybackState {
     data object Idle : PlaybackState
@@ -66,7 +76,11 @@ sealed interface PlaybackState {
  * chains episodes in the same mpv window.
  */
 class PlaybackController(private val scope: CoroutineScope) {
-    private companion object { const val VERSION_KEY = "source_version" }
+    companion object {
+        const val VERSION_KEY = "source_version"
+        const val SUBTITLE_SCALE_KEY = "subtitle_scale"
+        const val AUTOPLAY_NEXT_KEY = "autoplay_next"
+    }
     private val _state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val state: StateFlow<PlaybackState> get() = _state
 
@@ -106,7 +120,8 @@ class PlaybackController(private val scope: CoroutineScope) {
 
     private fun ensureMpv(title: String): Mpv {
         mpv?.takeIf { it.isAlive }?.let { return it }
-        val started = Mpv.start(title, fullscreen)
+        // Settings → Lecture: subtitle size.
+        val started = Mpv.start(title, fullscreen, listOf("--sub-scale=" + (prefs.getString(SUBTITLE_SCALE_KEY, null) ?: "1.0")))
         mpv = started
         Thread({
             started.observe(listOf("time-pos", "duration", "paused-for-cache"),
@@ -141,6 +156,7 @@ class PlaybackController(private val scope: CoroutineScope) {
         private val policy = PlaybackPolicy()
 
         fun start() {
+            request.local?.let { return startLocal(it) }
             _state.value = PlaybackState.Searching(request.title, request.episodeLabel, 0)
             job = scope.launch(Dispatchers.IO) {
                 val ready = CompletableDeferred<Unit>()
@@ -177,20 +193,37 @@ class PlaybackController(private val scope: CoroutineScope) {
                 } else {
                     load(first, WatchHistory.resumePositionMs(request.history.identity, request.history.episodeKey))
                 }
-                // Watchdog: a source that does not start within 30 s is replaced; progress is saved.
-                launch {
-                    var lastSave = 0L
-                    while (isActive && !cancelled) {
-                        delay(1_000)
-                        if (!started && loadedAt > 0 && System.currentTimeMillis() - loadedAt > 30_000) {
-                            AppLog.warn("Source did not start in time: ${current?.link?.name}")
-                            onError("stalled")
-                        }
-                        if (started && System.currentTimeMillis() - lastSave > 5_000) { lastSave = System.currentTimeMillis(); saveProgress() }
-                    }
-                }
+                launch { watch() }
                 acquisition.join()
                 upgrade()
+            }
+        }
+
+        /** Watchdog: a source that does not start within 30 s is replaced; progress is saved. */
+        private suspend fun watch() {
+            var lastSave = 0L
+            while (currentCoroutineContext().isActive && !cancelled) {
+                delay(1_000)
+                if (!started && loadedAt > 0 && System.currentTimeMillis() - loadedAt > 30_000) {
+                    AppLog.warn("Source did not start in time: ${current?.link?.name}")
+                    onError("stalled")
+                }
+                if (started && System.currentTimeMillis() - lastSave > 5_000) { lastSave = System.currentTimeMillis(); saveProgress() }
+            }
+        }
+
+        @Suppress("DEPRECATION")
+        private fun startLocal(local: LocalMedia) {
+            val version = local.version ?: SourceVersion.Unknown
+            val link = ExtractorLink("Local", "Téléchargé", local.video, "", local.quality, emptyMap(), null, ExtractorLinkType.VIDEO)
+            val source = PlaybackSource(link, PlaybackSourceMetadata(version, "Téléchargement", 0, check = SourceCheck.Verified,
+                verifiedHeight = local.quality.takeIf { it > 0 }, addedSubtitles = local.subtitles.isNotEmpty() && version != SourceVersion.VF))
+            synchronized(sources) { sources += source }
+            synchronized(subtitles) { subtitles += local.subtitles.map { SubtitleFile("Français", it) } }
+            acquisitionDone = true
+            job = scope.launch(Dispatchers.IO) {
+                load(source, WatchHistory.resumePositionMs(request.history.identity, request.history.episodeKey))
+                watch()
             }
         }
 
@@ -276,7 +309,10 @@ class PlaybackController(private val scope: CoroutineScope) {
         fun onEvent(player: Mpv, name: String, node: JsonNode) {
             if (cancelled || player !== mpv) return
             when (name) {
-                "file-loaded" -> addSubtitles(player)
+                "file-loaded" -> {
+                    addSubtitles(player)
+                    request.local?.audio?.let { player.commands(listOf("audio-add", it, "select")) }
+                }
                 "end-file" -> when (node.path("reason").asText()) {
                     "error" -> scope.launch(Dispatchers.IO) { onError(node.path("file_error").asText("error")) }
                     "eof" -> scope.launch(Dispatchers.IO) { onEnded() }
@@ -392,7 +428,7 @@ class PlaybackController(private val scope: CoroutineScope) {
             if (cancelled) return
             positionMs = durationMs
             saveProgress()
-            val next = request.next?.let { runCatching { it() }.getOrNull() }
+            val next = request.next?.takeIf { prefs.getBoolean(AUTOPLAY_NEXT_KEY, true) }?.let { runCatching { it() }.getOrNull() }
             if (next != null && !cancelled) {
                 play(next)
             } else {
