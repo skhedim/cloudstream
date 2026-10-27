@@ -48,6 +48,24 @@ $mpvTarget = Join-Path $Build 'input\mpv'
 New-Item -ItemType Directory -Force $mpvTarget | Out-Null
 Copy-Item (Join-Path $extract 'mpv.exe'), (Join-Path $extract 'd3dcompiler_43.dll') $mpvTarget -Force
 
+# uosc (tomasklaen/uosc, LGPL-2.1) replaces mpv's own controls, with KloudStream's settings
+# ($Build\mpv-config, from kloudstream-desktop/packaging/mpv), in mpv's portable_config next to mpv.exe.
+$UoscUrl = 'https://github.com/tomasklaen/uosc/releases/download/5.13.0/uosc.zip'
+$UoscSha256 = '4be9da3289285300fa374496c3f1bfd7bb20ac08e890d25bd5a06b28eebe4882'
+$uoscArchive = Join-Path $cache 'uosc-5.13.0.zip'
+if (-not (Test-Path $uoscArchive)) {
+    "Downloading uosc"
+    Invoke-WebRequest -Uri $UoscUrl -OutFile "$uoscArchive.part"
+    Move-Item "$uoscArchive.part" $uoscArchive
+}
+$hash = (Get-FileHash $uoscArchive -Algorithm SHA256).Hash.ToLower()
+if ($hash -ne $UoscSha256) { Remove-Item $uoscArchive; throw "uosc archive checksum mismatch: $hash" }
+$portable = Join-Path $mpvTarget 'portable_config'
+if (Test-Path $portable) { Remove-Item $portable -Recurse -Force }
+New-Item -ItemType Directory -Force $portable | Out-Null
+Expand-Archive $uoscArchive -DestinationPath $portable -Force
+Copy-Item (Join-Path $Build 'mpv-config\*') $portable -Recurse -Force
+
 "Creating the app image"
 $image = Join-Path $Build 'image'
 if (Test-Path $image) { Remove-Item $image -Recurse -Force }

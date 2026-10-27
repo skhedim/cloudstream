@@ -13,4 +13,5 @@ target=$(wslpath -u "$win_build")
 mkdir -p "$target/input"
 rsync -a --delete --exclude 'mpv/' kloudstream-desktop/build/stage/lib/ "$target/input/"
 cp kloudstream-desktop/packaging/kloudstream.ico kloudstream-desktop/packaging/kloudstream.iss "$target/"
+rsync -a --delete kloudstream-desktop/packaging/mpv/ "$target/mpv-config/"
 tools/windows/win.sh package -Build "$win_build" -Version "$version"

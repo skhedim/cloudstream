@@ -144,6 +144,7 @@ jobs:
           New-Item -ItemType Directory -Force (Join-Path $build 'input') | Out-Null
           Copy-Item desktop-lib\* (Join-Path $build 'input')
           Copy-Item kloudstream-desktop\packaging\kloudstream.ico, kloudstream-desktop\packaging\kloudstream.iss $build
+          Copy-Item kloudstream-desktop\packaging\mpv (Join-Path $build 'mpv-config') -Recurse
           tools\windows\package.ps1 -Build $build -Version $env:VERSION_NAME -Jdk $env:JAVA_HOME
       - name: Publish the installer
         shell: pwsh
