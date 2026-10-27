@@ -1,5 +1,6 @@
 package com.lagradost.cloudstream4.aggregation
 
+import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import com.lagradost.cloudstream4.domain.media.ExternalMediaId
 import com.lagradost.cloudstream4.domain.media.MediaAggregator
 import com.lagradost.cloudstream4.domain.media.MediaCandidate
@@ -42,19 +43,32 @@ class CanonicalBindingCompleter(
         return provider.api.supportedTypes.any { MediaAggregator.family(SearchMediaMapper.kind(it)) == family }
     }
 
-    /** Queries: the canonical title, then another known title (original title) if different. */
-    private fun queries(request: CanonicalDetailRequest): List<String> {
+    /** Queries: the canonical title, the English one if known, then another known title (original title). */
+    private fun queries(request: CanonicalDetailRequest, english: String?): List<String> {
         val primary = SearchMediaMapper.cleanTitle(request.title)
-        val key = MediaAggregator.matchKey(primary)
-        val second = request.aliases.map(SearchMediaMapper::cleanTitle)
-            .firstOrNull { it.isNotBlank() && MediaAggregator.matchKey(it) != key && it.length >= 2 }
-        return listOfNotNull(primary, second)
+        val keys = mutableSetOf(MediaAggregator.matchKey(primary))
+        val second = english?.let(SearchMediaMapper::cleanTitle)?.takeIf { it.length >= 2 && keys.add(MediaAggregator.matchKey(it)) }
+        val third = request.aliases.map(SearchMediaMapper::cleanTitle)
+            .firstOrNull { it.isNotBlank() && MediaAggregator.matchKey(it) !in keys && it.length >= 2 }
+        return listOfNotNull(primary, second, third)
     }
 
-    suspend fun complete(request: CanonicalDetailRequest, providers: List<RegisteredProvider>): List<DetailBinding> {
+    /**
+     * @param english the work's English title ([SearchMetadataCatalog.englishTitle] by default):
+     * original-version and anime catalogues know it rather than the French one.
+     */
+    suspend fun complete(request: CanonicalDetailRequest, providers: List<RegisteredProvider>,
+        english: suspend (CanonicalDetailRequest) -> String? = { work ->
+            work.externalIds.firstOrNull { it.namespace == ExternalIdNamespace.TmdbMovie || it.namespace == ExternalIdNamespace.TmdbTv }
+                ?.let { SearchMetadataCatalog.englishTitle(it) }
+        }): List<DetailBinding> {
         val bound = request.bindings.map { it.provider }.toSet() + request.bindings.mapNotNull { it.providerId }
         val targets = providers.filter { it.key !in bound && it.id !in bound && ProviderHealth.searchUsable(it.id) }
         if (targets.isEmpty()) return emptyList()
+        val viewer = PlaybackSources.viewerLanguage()
+        val foreign = targets.any { it.language.substringBefore('-').lowercase() !in setOf(viewer, "multi", "mul", "all") }
+        val englishTitle = if (!foreign) null else runCatching { english(request) }.getOrNull()
+        @Suppress("NAME_SHADOWING") val request = englishTitle?.let { request.copy(aliases = request.aliases + it) } ?: request
         val limiter = ProviderLimiter(concurrency, 1)
         val found = java.util.Collections.synchronizedList(mutableListOf<DetailBinding>())
         // Whatever is found before the deadline is kept.
@@ -62,7 +76,7 @@ class CanonicalBindingCompleter(
             coroutineScope {
                 targets.map { provider -> async {
                     limiter.withPermit(provider.id) {
-                        for (query in queries(request)) {
+                        for (query in queries(request, englishTitle)) {
                             val page = try {
                                 withTimeoutOrNull(searchTimeoutMs) { gateway().search(provider.api, query, 1) }
                             } catch (cancelled: CancellationException) { throw cancelled }

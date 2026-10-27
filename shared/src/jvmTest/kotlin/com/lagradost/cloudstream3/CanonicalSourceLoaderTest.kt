@@ -230,6 +230,94 @@ class CanonicalSourceLoaderTest {
         assertEquals(4.0, SourceRanking.qualityTier(SourceRanking.trustedHeight(2160, 2160)), 0.0)
     }
 
+    @Test fun originalVersionProvidersComplementTheViewersOnesInsteadOfCompetingWithThem() = runBlocking {
+        val vf = binding(); val vost = binding(); val english = binding(language = "en")
+        val starts = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        val ends = java.util.concurrent.ConcurrentHashMap<String, Long>()
+        val t0 = System.nanoTime()
+        fun now() = (System.nanoTime() - t0) / 1_000_000
+        val fetch: SourceFetch = { b, _, _, callback ->
+            starts[b.apiName] = now()
+            if (b != english) delay(300)
+            when (b) {
+                vf -> callback(link("VF", 1080))
+                vost -> callback(link("VOSTFR", 1080))
+                else -> callback(link("Host", 1080))
+            }
+            ends[b.apiName] = now(); true
+        }
+        // VF and VOST already offered in French: the original-version provider is not even asked.
+        val both = loader().load(listOf(english, vf, vost), true, false, fetch = fetch)
+        assertEquals("Skipped", both.outcomes.single { it.provider == english.apiName }.status)
+        assertFalse(starts.containsKey(english.apiName))
+        // Only VF: it adds the original version, once the French providers have answered.
+        val vfOnly = loader().load(listOf(english, vf), true, false, fetch = fetch)
+        assertTrue(starts.getValue(english.apiName) >= ends.getValue(vf.apiName))
+        assertEquals(setOf(SourceVersion.VF, SourceVersion.VO), vfOnly.sources.map { it.version }.toSet())
+        // Chosen VOST: everyone starts together.
+        starts.clear(); ends.clear()
+        loader().load(listOf(english, vf), true, false, preference = SourceVersion.VOST, fetch = fetch)
+        assertTrue(starts.getValue(english.apiName) < ends.getValue(vf.apiName))
+    }
+
+    @Test fun originalAudioWithFrenchSubtitlesFoundForItIsOfferedAsVost() = runBlocking {
+        val french = binding(); val english = binding(language = "en")
+        val asked = AtomicInteger()
+        val subtitles = listOf(newSubtitleFile(ExternalSubtitles.LABEL, "https://subs.invalid/1.srt"))
+        val received = java.util.Collections.synchronizedList(mutableListOf<SubtitleFile>())
+        val result = loader().load(listOf(french, english), true, false, work = PlaybackWork("tt0000001"),
+            onSubtitle = { received += it }, frenchSubtitles = { asked.incrementAndGet(); subtitles }) { b, _, _, callback ->
+            callback(if (b == english) link("Host", 1080) else link("VOSTFR", 1080)); true
+        }
+        val added = result.sources.single { it.metadata.provider == english.apiName }
+        assertEquals(SourceVersion.VOST, added.version)
+        assertTrue(added.metadata.addedSubtitles)
+        assertTrue(added.link.name.startsWith("VOST"))
+        assertEquals(1, asked.get())
+        assertEquals(listOf("https://subs.invalid/1.srt"), received.map { it.url })
+        // Same quality: the provider's own VOST (subtitles timed for that stream) comes first.
+        assertEquals(french.apiName, SourceRanking.rank(result.sources).first().metadata.provider)
+
+        // Nothing found: it stays an original version; French-only results never ask.
+        val bare = loader().load(listOf(english), true, false, work = PlaybackWork("tt0000001"),
+            frenchSubtitles = { emptyList() }) { _, _, _, callback -> callback(link("Host", 1080)); true }
+        assertEquals(SourceVersion.VO, bare.sources.single().version)
+        asked.set(0)
+        loader().load(listOf(french), true, false, work = PlaybackWork("tt0000001"),
+            frenchSubtitles = { asked.incrementAndGet(); subtitles }) { _, _, _, callback -> callback(link("VF", 1080)); true }
+        assertEquals(0, asked.get())
+    }
+
+    @Test fun whenNothingComesInFrenchACheckedOriginalVersionStartsWithoutWaitingForEveryone() = runBlocking {
+        val french = binding(); val quick = binding(language = "en"); val slow = binding(language = "en")
+        var readyAt = -1L
+        val started = System.nanoTime()
+        loader().load(listOf(french, quick, slow), true, false, expectedSeconds = 6_000.0,
+            onReady = { readyAt = (System.nanoTime() - started) / 1_000_000 }) { b, _, _, callback ->
+            when (b) {
+                french -> false
+                quick -> { callback(link("Host", 1080, "https://video.invalid/en?dur=6000")); true }
+                else -> { delay(3_000); true }
+            }
+        }
+        assertTrue("ready after ${readyAt}ms", readyAt in 0..1_500)
+    }
+
+    @Test fun frenchSubtitlesComeFromTheCatalogueWebReleasesFirst() {
+        val json = """{"subtitles":[
+            {"url":"https://subs.invalid/en","lang":"eng","movieReleaseName":"Film.2024.1080p.WEB-DL"},
+            {"url":"https://subs.invalid/bluray","lang":"fre","movieReleaseName":"Film.2024.1080p.BluRay.x264"},
+            {"url":"https://subs.invalid/web","lang":"fre","movieReleaseName":"Film.2024.1080p.WEB-DL.H264"},
+            {"url":"https://subs.invalid/web","lang":"fre","movieReleaseName":"Film.2024.WEBRip"},
+            {"url":"","lang":"fre"},
+            {"url":"https://subs.invalid/other","lang":"fra","subtitleFileName":"film.srt"}]}"""
+        assertEquals(listOf("https://subs.invalid/web", "https://subs.invalid/bluray", "https://subs.invalid/other"),
+            ExternalSubtitles.parse(json))
+        assertEquals("https://opensubtitles-v3.strem.io/subtitles/series/tt0903747:1:2.json",
+            ExternalSubtitles.url(PlaybackWork("tt0903747", 1, 2)))
+        assertEquals(null, ExternalSubtitles.url(PlaybackWork(null)))
+    }
+
     @Test fun reliableFastProvidersStartBeforeSlowUnreliableOnes() = runBlocking {
         ProviderHealth.reset()
         val slow = binding(); val fast = binding()

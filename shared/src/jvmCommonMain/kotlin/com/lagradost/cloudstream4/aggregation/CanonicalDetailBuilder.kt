@@ -165,7 +165,7 @@ object CanonicalDetailBuilder {
         }
 
         val originals = linkedMapOf<String, Episode>()
-        val candidates = mutableListOf<EpisodeCandidate>()
+        val found = mutableListOf<Pair<EpisodeCandidate, Episode>>()
         compatible.forEach { item ->
             val seasonNames = (item.response as? EpisodeResponse)?.seasonNames
             val scope = item.binding.scopedSeason
@@ -188,16 +188,23 @@ object CanonicalDetailBuilder {
                 val season = seasonOf(episode)
                 // Contradictory numbering is kept in an unresolved section, never guessed.
                 val conflict = scope != null && season != null && scope != season
-                val candidate = EpisodeCandidate(source, if (conflict) null else season, numberOf(episode),
-                    track.name, index, if (conflict) null else scope, absolute)
-                candidates += candidate
-                val key = EpisodeAggregator.aggregate(listOf(candidate)).single().key
-                val previous = originals[key]
-                if (previous == null || ((previous.name.isNullOrBlank() ||
-                            EpisodeNumbering.fromLabel(previous.name) != null) &&
-                            !episode.name.isNullOrBlank() && EpisodeNumbering.fromLabel(episode.name) == null))
-                    originals[key] = episode
+                found += EpisodeCandidate(source, if (conflict) null else season, numberOf(episode),
+                    track.name, index, if (conflict) null else scope, absolute) to episode
             }
+        }
+        // Absolute numbering starts at S1E1: within the first season's known length (anime catalogues
+        // next to season lists), absolute N is S1EN. Later numbers stay absolute, never guessed.
+        val firstSeason = found.map { it.first }.filter { !it.absolute && it.season == 1 }.mapNotNull { it.episode }.maxOrNull()
+        val candidates = found.map { (candidate, episode) ->
+            val placed = if (firstSeason != null && candidate.absolute && candidate.episode != null && candidate.episode <= firstSeason)
+                candidate.copy(season = 1, absolute = false) else candidate
+            val key = EpisodeAggregator.aggregate(listOf(placed)).single().key
+            val previous = originals[key]
+            if (previous == null || ((previous.name.isNullOrBlank() ||
+                        EpisodeNumbering.fromLabel(previous.name) != null) &&
+                        !episode.name.isNullOrBlank() && EpisodeNumbering.fromLabel(episode.name) == null))
+                originals[key] = episode
+            placed
         }
         val rows = EpisodeAggregator.aggregate(candidates).map { CanonicalEpisodeRow(it, originals.getValue(it.key)) }
         return CanonicalDetailModel(verified, base, compatible, rejected, wantedFamily, rows, null,

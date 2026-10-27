@@ -45,6 +45,35 @@ class CanonicalBindingCompleterTest {
         assertTrue(found.all { it.providerId != null })
     }
 
+    @Test fun originalVersionCataloguesAreAskedAndMatchedWithTheEnglishTitle() = runBlocking {
+        AggregationPlatform.metadataLanguage = { "fr-FR" }
+        val anime = object : MainAPI() {
+            override var name = "AnimeEn"
+            override var mainUrl = "https://anime.example"
+            override var lang = "en"
+            override val supportedTypes = setOf(TvType.Anime)
+        }
+        val queries = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val gateway = object : ProviderGateway {
+            override suspend fun search(api: MainAPI, query: String, page: Int): SearchResponseList {
+                queries += query
+                val found = if (query.startsWith("Frieren")) listOf(api.newAnimeSearchResponse("Frieren: Beyond Journey's End", "${api.mainUrl}/frieren") { year = 2023 })
+                    else emptyList()
+                return newSearchResponseList(found, false)
+            }
+            override suspend fun load(api: MainAPI, url: String): LoadResponse? = null
+            override suspend fun loadLinks(api: MainAPI, data: String, isCasting: Boolean,
+                subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit) = false
+        }
+        val frieren = CanonicalDetailRequest("frieren", "Frieren", 2023, MediaKind.Series,
+            setOf(ExternalMediaId(ExternalIdNamespace.TmdbTv, "209867")), listOf(DetailBinding(ProviderKey(home.name, home.mainUrl), "/frieren")))
+        val found = CanonicalBindingCompleter(gateway = { gateway })
+            .complete(frieren, listOf(registered(home), registered(anime))) { "Frieren: Beyond Journey's End" }
+        assertEquals(listOf("AnimeEn"), found.map { it.provider.name })
+        // Without the English title, the French one alone does not prove it is the same work.
+        assertTrue(CanonicalBindingCompleter(gateway = { gateway }).complete(frieren, listOf(registered(home), registered(anime))) { null }.isEmpty())
+    }
+
     @Test fun anEmptyAnswerOnlyCountsAgainstProvidersThatCoverTheKind() = runBlocking {
         ProviderHealth.reset()
         val anime = api("AnimeOnly", setOf(TvType.Anime)); val general = api("General")

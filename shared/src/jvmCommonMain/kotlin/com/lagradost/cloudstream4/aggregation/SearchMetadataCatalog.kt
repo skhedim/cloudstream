@@ -73,10 +73,42 @@ object SearchMetadataCatalog {
                     }
                     if (page >= (result.totalPages ?: 1)) break
                 }
-                references.distinctBy { it.id }.also { save(searches,key,it,30) }
+                // Original-version and anime catalogues use English titles ("Frieren: Beyond Journey's End").
+                val english = if (language.startsWith("en")) emptyMap() else englishTitles(query)
+                references.distinctBy { it.id }
+                    .map { ref -> english[ref.id]?.let { ref.copy(alternateTitles = ref.alternateTitles + it) } ?: ref }
+                    .also { save(searches,key,it,30) }
             }.orEmpty()
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { emptyList() }
+    }
+
+    private suspend fun englishTitles(query: String): Map<ExternalMediaId, String> = try {
+        mapper.readValue(TmdbAccess.get("/search/multi", mapOf("query" to query, "language" to "en-US", "page" to "1")).text,
+            TmdbProvider.TmdbPageResult::class.java).results.orEmpty().mapNotNull { item ->
+            val namespace = when (item.mediaType) { "movie" -> ExternalIdNamespace.TmdbMovie; "tv" -> ExternalIdNamespace.TmdbTv; else -> return@mapNotNull null }
+            val number = item.id?.takeIf { it > 0 } ?: return@mapNotNull null
+            (item.title ?: item.name)?.takeIf { it.isNotBlank() }?.let { ExternalMediaId(namespace, number.toString()) to it }
+        }.toMap()
+    } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { emptyMap() }
+
+    private val englishTitles = linkedMapOf<ExternalMediaId, Saved<String?>>()
+
+    /** The work's English title on TMDB, for providers that only know it. */
+    suspend fun englishTitle(id: ExternalMediaId): String? {
+        cached(englishTitles, id)?.let { return it }
+        val type = when (id.namespace) {
+            ExternalIdNamespace.TmdbMovie -> "movie"
+            ExternalIdNamespace.TmdbTv -> "tv"
+            else -> return null
+        }
+        return try {
+            withTimeoutOrNull(3_000) {
+                val node = TmdbAccess.json("/$type/${id.value}", mapOf("language" to "en-US"))
+                node.path(if (type == "movie") "title" else "name").asText("").takeIf { it.isNotBlank() }
+                    .also { save(englishTitles, id, it, 200) }
+            }
+        } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
     }
 
     suspend fun withImages(reference: MediaReference): MediaReference {

@@ -110,6 +110,12 @@ class CanonicalSourceLoader(
      * @param episode whether [expectedSeconds] is an episode runtime (looser tolerance).
      * @param onSource each newly published unique source (a better-quality duplicate is published again).
      * @param onReady called once, when [PlaybackPolicy.shouldStart] holds.
+     * @param work the work's IMDb ID (and episode): original-version links become VOST when French
+     * subtitles exist for it ([frenchSubtitles], asked once, only if such a link comes).
+     *
+     * Providers in another language than the viewer's complement the others: unless VO or VOST was
+     * chosen, they start once the viewer's providers have answered, and not at all when those
+     * already offer both VF and VOST.
      */
     suspend fun load(
         bindings: List<EpisodeSourceBinding>, clearCache: Boolean, casting: Boolean,
@@ -119,6 +125,8 @@ class CanonicalSourceLoader(
         onSource: ((PlaybackSource) -> Unit)? = null,
         onSubtitle: ((SubtitleFile) -> Unit)? = null,
         onReady: (() -> Unit)? = null,
+        work: PlaybackWork? = null,
+        frenchSubtitles: suspend (PlaybackWork) -> List<SubtitleFile> = { ExternalSubtitles.french(it) },
         fetch: SourceFetch = Companion::fetch,
     ): CanonicalSources = withContext(Dispatchers.IO) {
         val startedAt = System.nanoTime()
@@ -151,6 +159,9 @@ class CanonicalSourceLoader(
         val rejectedPerOrdinal = mutableMapOf<Int, Int>()
         val pendingBindings = AtomicInteger(ordered.size)
         val nativePending = AtomicInteger(ordered.count { native(it.value) && it.index !in fallbackOrdinals })
+        val nativesDone = CompletableDeferred<Unit>()
+        if (nativePending.get() == 0) nativesDone.complete(Unit)
+        val deferComplements = preference == SourceVersion.Auto || preference == SourceVersion.VF
         val ready = AtomicBoolean(onReady == null)
         var readyAfterMs: Long? = null
         val scope = this
@@ -163,6 +174,24 @@ class CanonicalSourceLoader(
         val wake = Channel<Unit>(Channel.CONFLATED)
         val acquisitionOver = AtomicBoolean(false)
 
+        fun addSubtitle(file: SubtitleFile): Boolean {
+            val isNew = synchronized(subtitles) {
+                val key = listOf(file.url, file.headers)
+                (key !in subtitles).also { if (it) subtitles[key] = file }
+            }
+            if (isNew) onSubtitle?.invoke(file)
+            return isNew
+        }
+        // French subtitles for original-version links: looked up when the first such link is checked.
+        val externalFrench = async(start = CoroutineStart.LAZY) {
+            work?.let { runCatching { frenchSubtitles(it) }.getOrNull() }.orEmpty()
+        }
+        suspend fun subtitled(candidate: Candidate): Boolean {
+            if (work == null || native(candidate.binding) || PlaybackSources.version(candidate.raw.name, candidate.binding) != SourceVersion.VO) return false
+            val files = externalFrench.await()
+            files.forEach(::addSubtitle)
+            return files.isNotEmpty()
+        }
         fun best(): PlaybackSource? = synchronized(published) {
             published.values.maxByOrNull { SourceRanking.score(it.metadata, PlaybackSources.quality(it.link), preference) }
         }
@@ -179,8 +208,8 @@ class CanonicalSourceLoader(
                 onReady?.invoke()
             }
         }
-        fun publish(candidate: Candidate, probe: StreamProbe?, check: SourceCheck, duration: Double?) {
-            val copy = PlaybackSources.copy(candidate.raw, candidate.binding, candidate.ordinal, probe, check, duration)
+        fun publish(candidate: Candidate, probe: StreamProbe?, check: SourceCheck, duration: Double?, subtitled: Boolean = false) {
+            val copy = PlaybackSources.copy(candidate.raw, candidate.binding, candidate.ordinal, probe, check, duration, subtitled)
             val source = PlaybackSource(copy, PlaybackSources.metadata(copy)!!)
             val key = PlaybackSources.key(copy)
             val isNew = synchronized(published) {
@@ -223,8 +252,9 @@ class CanonicalSourceLoader(
                             val inspection = inspect(next.raw)
                             val verdict = StreamChecks.verdict(inspection, expectedSeconds, episode)
                             if (verdict.rejected) reject(next, verdict.reason ?: "rejected")
-                            else publish(next, inspection.probe.takeIf { inspection.reachable }, verdict.check!!, inspection.durationSeconds)
-                        } else publish(next, null, SourceCheck.Unchecked, null)
+                            else publish(next, inspection.probe.takeIf { inspection.reachable }, verdict.check!!,
+                                inspection.durationSeconds, subtitled(next))
+                        } else publish(next, null, SourceCheck.Unchecked, null, subtitled(next))
                     } catch (cancelled: CancellationException) { throw cancelled }
                     catch (_: Exception) { publish(next, null, SourceCheck.Unchecked, null) }
                     finally {
@@ -251,14 +281,16 @@ class CanonicalSourceLoader(
                     enqueue(link, binding, ordinal)
                 }
                 fun acceptSubtitle(file: SubtitleFile) {
-                    val isNew = synchronized(subtitles) {
-                        val key = listOf(file.url, file.headers)
-                        (key !in subtitles).also { if (it) subtitles[key] = file }
-                    }
                     synchronized(rawSubtitles) { rawSubtitles += file }
-                    if (isNew) onSubtitle?.invoke(file)
+                    addSubtitle(file)
                 }
                 val fallback = ordinal in fallbackOrdinals
+                if (!fallback && !native(binding) && deferComplements) {
+                    withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { nativesDone.await() }
+                    // The viewer's providers already offer VF and VOST: an original-version one adds nothing.
+                    if (synchronized(published) { published.values.map { it.version }.containsAll(listOf(SourceVersion.VF, SourceVersion.VOST)) })
+                        status = "Skipped"
+                }
                 if (fallback) {
                     withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { reliableDone.await() }
                     // Wait for the reliable providers' links to be checked too.
@@ -324,7 +356,10 @@ class CanonicalSourceLoader(
                 }
                 if (!fallback && reliableRemaining.decrementAndGet() == 0) reliableDone.complete(Unit)
                 pendingBindings.decrementAndGet()
-                if (native(binding) && !fallback) nativePending.decrementAndGet()
+                if (native(binding) && !fallback && nativePending.decrementAndGet() == 0) {
+                    // Their links may still be in the inspection queue: complements wait for those too.
+                    launch { while (nativeQueued.get() > 0 && System.nanoTime() < deadline) delay(100); nativesDone.complete(Unit) }
+                }
                 checkReady()
                 Triple(ordinal, binding, SourceLoadOutcome(ordinal, binding.apiName, binding.track, status, count, elapsed))
             } }.awaitAll()
@@ -336,6 +371,8 @@ class CanonicalSourceLoader(
         withTimeoutOrNull(((deadline - System.nanoTime()) / 1_000_000).coerceAtLeast(1)) { workers.forEach { it.join() } }
         workers.forEach { it.cancel() }
         synchronized(queue) { generateSequence { queue.poll() }.toList() }.forEach { publish(it, null, SourceCheck.Unchecked, null) }
+        // Never started (no original-version link): it must not keep the load open.
+        if (!externalFrench.isActive && !externalFrench.isCompleted) externalFrench.cancel()
         ticker?.cancel()
         ensureActive()
         checkReady()

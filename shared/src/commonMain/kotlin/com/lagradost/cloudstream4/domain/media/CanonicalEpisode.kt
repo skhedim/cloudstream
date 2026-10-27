@@ -13,7 +13,8 @@ data class EpisodeCandidate(
     val scopedSeason: Int? = null,
     /**
      * The provider lists the whole work as one flat, season-less sequence. Absolute numbers only
-     * match other absolute lists: they are never converted to season/episode coordinates.
+     * match other absolute lists, except within the first season's known length, where absolute N
+     * is S1EN (CanonicalDetailBuilder places them there).
      */
     val absolute: Boolean = false,
 )

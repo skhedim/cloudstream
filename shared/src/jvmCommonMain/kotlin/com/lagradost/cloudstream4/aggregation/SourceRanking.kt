@@ -18,6 +18,8 @@ object SourceRanking {
     const val VOST_BONUS = 0.9
     const val VO_PENALTY = -10.0
     const val UNKNOWN_QUALITY_TIER = 1.5
+    /** Subtitles fetched for an original-version stream may be timed for another release: one step below. */
+    const val ADDED_SUBTITLES_PENALTY = 1.0
 
     /** Bonus of a remembered (not just chosen) version: worth 2.5 steps, so only a huge gap overrides it. */
     const val PREFERRED_BONUS = 2.5
@@ -68,7 +70,8 @@ object SourceRanking {
 
     fun score(metadata: PlaybackSourceMetadata, declaredHeight: Int = 0, preference: SourceVersion = SourceVersion.Auto): Double =
         score(metadata.version, trustedHeight(declaredHeight, metadata.verifiedHeight), preference) +
-            checkBonus(metadata.check) - ProviderHealth.playbackPenalty(metadata.providerId ?: metadata.provider)
+            checkBonus(metadata.check) - ProviderHealth.playbackPenalty(metadata.providerId ?: metadata.provider) -
+            (if (metadata.addedSubtitles) ADDED_SUBTITLES_PENALTY else 0.0)
 
     /** Stable order: score, then the user's quality-profile priority, resolution, binding order, name, URL. */
     fun <T> comparator(
@@ -102,13 +105,16 @@ class PlaybackPolicy(
         best ?: return false
         bestScore ?: return false
         if (pending == 0) return true
-        val native = best.version != SourceVersion.VO
+        // Original-version providers (VO, or VOST through fetched subtitles) only complement the viewer's language.
+        val native = best.version != SourceVersion.VO && !best.addedSubtitles
         return when {
             best.check == SourceCheck.Verified && best.version == SourceVersion.VF && bestScore >= SourceRanking.EXCELLENT_SCORE -> true
             native && nativePending == 0 && best.check != SourceCheck.Unchecked -> true
             native && best.check == SourceCheck.Verified && elapsedMs >= goodSourceWaitMs &&
                 bestHeight >= 720 -> true
             native && elapsedMs >= maxWaitMs -> true
+            // Nothing came in the viewer's language: a checked original-version source starts.
+            !native && nativePending == 0 && best.check == SourceCheck.Verified -> true
             else -> false
         }
     }

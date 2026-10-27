@@ -34,6 +34,8 @@ data class PlaybackSourceMetadata(
     /** Resolution read from the manifest, when there is one. */
     val verifiedHeight: Int? = null,
     val durationSeconds: Double? = null,
+    /** Original audio made VOST by French subtitles fetched for it ([ExternalSubtitles]): select them. */
+    val addedSubtitles: Boolean = false,
 )
 
 /** An app-owned playable copy of an extension link and what the engine knows about it. */
@@ -90,19 +92,23 @@ object PlaybackSources {
 
     /**
      * @param inspection measurements of the stream; they only fill what the extension left unknown.
+     * @param subtitled French subtitles were found for the work: original audio becomes VOST.
      */
     @Suppress("DEPRECATION")
     fun copy(
         link: ExtractorLink, binding: EpisodeSourceBinding, ordinal: Int,
         probe: StreamProbe? = null, check: SourceCheck = SourceCheck.Unchecked, durationSeconds: Double? = null,
+        subtitled: Boolean = false,
     ): ExtractorLink {
         val labelled = version(link.name, binding)
         val probedVersion = probe?.version
-        val version = when {
+        val measured = when {
             probedVersion == null -> labelled
             labelled == SourceVersion.Unknown || labelled == SourceVersion.VO -> probedVersion
             else -> labelled
         }
+        val addedSubtitles = subtitled && measured == SourceVersion.VO
+        val version = if (addedSubtitles) SourceVersion.VOST else measured
         val verifiedHeight = probe?.height
         val quality = verifiedHeight ?: link.quality
         val label = when (version) {
@@ -120,7 +126,7 @@ object PlaybackSources {
         val probed = probe != null && (version != labelled || quality != link.quality)
         synchronized(this) {
             metadata[copy] = PlaybackSourceMetadata(version, binding.apiName, ordinal, binding.providerId, probed,
-                check, verifiedHeight, durationSeconds)
+                check, verifiedHeight, durationSeconds, addedSubtitles)
         }
         return copy
     }

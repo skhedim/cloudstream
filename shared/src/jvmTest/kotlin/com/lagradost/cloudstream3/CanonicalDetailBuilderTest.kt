@@ -65,16 +65,18 @@ class CanonicalDetailBuilderTest {
         assertEquals(2, model.compatible.size)
     }
 
-    @Test fun flatListsBecomeOneAbsoluteSeasonAndSeasonedListsStayApart() = runBlocking {
+    @Test fun flatListsBecomeOneAbsoluteSeasonAndJoinSeasonsOnlyWithinTheFirstOne() = runBlocking {
         val flat = CanonicalDetailBuilder.build(request(a, b), listOf(
             series(a, episodes = listOf(null to 1, null to 2)), series(b, episodes = listOf(null to 2, null to 3))))!!
         assertTrue(flat.absoluteOnly)
         assertEquals(listOf("abs:e1", "abs:e2", "abs:e3"), flat.episodes.map { it.episode.key })
         assertEquals(2, flat.episodes.single { it.episode.key == "abs:e2" }.episode.bindings.size)
+        // An anime catalogue's absolute list next to a season list: 1–2 are S1E1–S1E2, 3 is not guessed.
         val mixed = CanonicalDetailBuilder.build(request(a, b), listOf(
-            series(a, episodes = listOf(null to 1)), series(b, episodes = listOf(1 to 1))))!!
+            series(a, episodes = listOf(null to 1, null to 2, null to 3)), series(b, episodes = listOf(1 to 1, 1 to 2))))!!
         assertFalse(mixed.absoluteOnly)
-        assertEquals(setOf("abs:e1", "s1:e1"), mixed.episodes.map { it.episode.key }.toSet())
+        assertEquals(setOf("s1:e1", "s1:e2", "abs:e3"), mixed.episodes.map { it.episode.key }.toSet())
+        assertEquals(2, mixed.episodes.single { it.episode.key == "s1:e1" }.episode.bindings.size)
     }
 
     @Test fun providerLimiterBoundsEachProviderAndTheTotal() = runBlocking {
