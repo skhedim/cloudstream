@@ -44,10 +44,14 @@ object DexTranslator {
                 zip.getInputStream(entry).use { input -> out.outputStream().use { input.copyTo(it) } }
             }
         }
-        // Older translations of the same archive name are no longer needed.
-        outputRoot.listFiles { f -> f.isDirectory && f != dir && f.name.startsWith(archive.nameWithoutExtension + "-") }
-            ?.forEach { it.deleteRecursively() }
+        removeOlder(archive, outputRoot, dir)
         marker.writeText(hash)
         return dir
+    }
+
+    /** Older translations of [archive] are no longer needed; `frembed-…` is not `frembed-fr-…`. */
+    fun removeOlder(archive: File, outputRoot: File, current: File) {
+        val older = Regex(Regex.escape(archive.nameWithoutExtension) + "-[0-9a-f]{16}")
+        outputRoot.listFiles { f -> f.isDirectory && f != current && older.matches(f.name) }?.forEach { it.deleteRecursively() }
     }
 }
