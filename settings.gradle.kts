@@ -19,3 +19,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "CloudStream"
 include(":app", ":shared", ":library", ":docs", ":desktopApp")
+// KloudStream desktop (Windows/Linux), kept apart from upstream's desktopApp.
+include(":kloudstream-desktop")

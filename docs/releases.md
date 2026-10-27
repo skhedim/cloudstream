@@ -12,7 +12,7 @@ Both of CloudStream's update mechanisms only check this repository. The updater 
 
 ## CI
 
-- `.github/workflows/fork-release.yml` runs on every push to `main`, or manually from Actions. It checks the extension ABI, runs the shared JVM tests and the Android unit tests, and builds the signed APK. It verifies the APK with `apksigner`, then publishes a public release with `SHA256SUMS`.
+- `.github/workflows/fork-release.yml` runs on every push to `main`, or manually from Actions. It checks the extension ABI, runs the shared JVM, Android and desktop unit tests, and builds the signed APK. It verifies the APK with `apksigner`, then publishes a public release with `SHA256SUMS`. A second job builds the Windows installer on a Windows runner (see [the desktop app](desktop.md)) and adds it to the same release.
 - `.github/workflows/fork-checks.yml` runs the same checks on pull requests to `main` and builds a debug APK, without access to the signing key.
 - The upstream workflows (pre-release, archive, Dokka, locales, instrumented tests, pull requests) keep their original content. A single `if: github.repository == 'recloudstream/cloudstream'` line stops them from running here.
 
@@ -38,7 +38,8 @@ The push publishes a new release; version numbers come from the run counter, so 
 
 KloudStream keeps upstream files as close to the original as possible so rebases stay simple:
 
-- **Fork-only files, which never conflict**: `.github/README.md` (shown instead of `README.md`), `.github/workflows/fork-*.yml`, `app/src/release/` (app name), `shared/src/jvmCommonMain/` (aggregation engine), `ui/*/aggregation/`, `ui/catalog/`, `docs/`, `tools/`.
+- **Fork-only files, which never conflict**: `.github/README.md` (shown instead of `README.md`), `.github/workflows/fork-*.yml`, `app/src/release/` (app name), `shared/src/jvmCommonMain/` (aggregation engine), `ui/*/aggregation/`, `ui/catalog/`, `kloudstream-desktop/` (Windows app), `docs/`, `tools/`.
+- **One line in an upstream file**: `settings.gradle.kts` includes `:kloudstream-desktop`.
 - **Small edits to upstream files**: the `if:` line in upstream workflows, and in `app/build.gradle.kts` the signing, version and package suffix.
 - **Integration points that may need attention**, by size of change:
   - home: `HomeViewModel`, `HomeFragment`, the row adapters and `homepage_parent*.xml`;

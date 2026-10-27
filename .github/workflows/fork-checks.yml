@@ -37,7 +37,7 @@ jobs:
           mkdir -p ~/.gradle
           printf '%s\n' 'org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8' 'kotlin.compiler.execution.strategy=in-process' >> ~/.gradle/gradle.properties
       - name: Check and build without release credentials
-        run: ./gradlew :library:checkKotlinAbi :shared:jvmTest :app:testStableDebugUnitTest :app:assembleStableDebug --max-workers=2 --console=plain
+        run: ./gradlew :library:checkKotlinAbi :shared:jvmTest :app:testStableDebugUnitTest :kloudstream-desktop:jvmTest :app:assembleStableDebug --max-workers=2 --console=plain
       - uses: actions/upload-artifact@v7
         with:
           name: pull-request-build
