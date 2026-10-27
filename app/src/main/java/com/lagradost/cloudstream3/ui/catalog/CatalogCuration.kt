@@ -38,7 +38,11 @@ object CatalogCuration {
         blocked(name, origin, version) || key(name) in utilities
     fun blocked(data: PluginData) = blocked(data.internalName, data.url.orEmpty() + data.filePath, data.version)
     fun blockedClass(className: String) = className.startsWith("com.allforu.", true)
-    fun recommended(name: String, origin: String): Boolean = reviewed[key(name)]?.any { it in key(origin) } == true
+    fun recommended(name: String, origin: String): Boolean = reviewedOrigin(name, origin) != null
+    /** The reviewed origin matching [origin]: two reviewed packages may share a name (both Frembeds). */
+    fun reviewedOrigin(name: String, origin: String): String? = reviewed[key(name)]?.firstOrNull { it in key(origin) }
+    fun reviewedOrigin(plugin: PluginWrapper): String? = reviewedOrigin(plugin.plugin.internalName,
+        plugin.repositoryData.url + plugin.plugin.url)
     fun recommended(plugin: PluginWrapper) = recommended(plugin.plugin.internalName,
         plugin.repositoryData.url + plugin.plugin.url)
     fun recommendedPath(path: String): Boolean {

@@ -13,7 +13,9 @@ data class CatalogSelection(val languages: Set<String>, val types: Set<TvType>, 
         language?.lowercase()?.substringBefore('-') in languages.map { it.lowercase().substringBefore('-') }
     fun accepts(plugin: PluginWrapper): Boolean {
         val p = plugin.plugin
-        if (p.status !in 1..2 || p.apiVersion != 1 || CatalogCuration.excludedFromCatalogue(p.internalName,
+        // Beta (3) is accepted only for reviewed packages, which the provider survey measured working.
+        val status = p.status in 1..2 || (p.status == 3 && CatalogCuration.recommended(plugin))
+        if (!status || p.apiVersion != 1 || CatalogCuration.excludedFromCatalogue(p.internalName,
                 plugin.repositoryData.url + p.url, p.version)) return false
         // This published version links against a removed core auth class and cannot load.
         if (p.internalName.equals("FStream", true) && p.version <= 16) return false
@@ -28,7 +30,8 @@ data class CatalogSelection(val languages: Set<String>, val types: Set<TvType>, 
         (item.type in types && item.type in CatalogCuration.videoTypes)
 
     fun plan(plugins: List<PluginWrapper>, installedUrls: Set<String> = emptySet()): List<PluginWrapper> =
-        plugins.filter { accepts(it) }.groupBy { it.plugin.internalName.lowercase() }.values.map { copies ->
+        // Mirrors of a package are installed once; reviewed packages that share a name are distinct.
+        plugins.filter { accepts(it) }.groupBy { it.plugin.internalName.lowercase() + "|" + CatalogCuration.reviewedOrigin(it).orEmpty() }.values.map { copies ->
             copies.sortedWith(compareByDescending<PluginWrapper> { it.plugin.url in installedUrls }
                 .thenBy { it.plugin.status }.thenByDescending { it.plugin.version }).first()
         }.distinctBy { it.plugin.url }.sortedBy { it.plugin.name.lowercase() }

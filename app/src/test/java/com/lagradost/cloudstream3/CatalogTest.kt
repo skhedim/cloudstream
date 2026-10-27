@@ -82,6 +82,19 @@ class CatalogTest {
             "https://raw.githubusercontent.com/kraptor123/cs-karma/builds/Movix.cs3")))
         assertTrue(selection.copy(recommendedOnly = false).accepts(plugin("GenericVideo", "en")))
     }
+    @Test fun reviewedBetaPackagesAndBothReviewedFrembedsAreInstalled() {
+        val french = CatalogSelection(setOf("fr"), setOf(TvType.Movie))
+        val yorik = plugin("Frembed", status = 3, url = "https://raw.githubusercontent.com/yorik100/Cloudstream/builds/Frembed.cs3")
+        val amsc = plugin("Frembed", url = "https://raw.githubusercontent.com/mouradchaouche/cloudstream-frenchrepo/main/Build/Frembed.cs3")
+        val mirror = plugin("Frembed", url = "https://raw.githubusercontent.com/yorik100/Cloudstream/builds/Frembed.cs3?mirror")
+        // Beta is fine for a reviewed package, never for an unreviewed one.
+        assertTrue(french.accepts(yorik))
+        assertFalse(french.copy(recommendedOnly = false).accepts(plugin("Unknown", status = 3)))
+        assertFalse(french.accepts(plugin("Frembed", status = 0, url = yorik.plugin.url)))
+        val planned = french.plan(listOf(yorik, amsc, mirror))
+        assertEquals(2, planned.size)
+        assertEquals(setOf(yorik.plugin.url, amsc.plugin.url).size, planned.map { CatalogCuration.reviewedOrigin(it) }.distinct().size)
+    }
     @Test fun intrusiveRatingGamesAndUtilitiesCannotReenterEvenWithMovieTagsOrExtendedSelection() {
         val all = CatalogSelection(setOf(AllLanguagesName), TvType.entries.toSet(), recommendedOnly = false)
         assertFalse(all.accepts(plugin("Rate", url = "https://raw.githubusercontent.com/RVRBEAST76/allforu-repo/builds/Rate-v8.cs3")))
