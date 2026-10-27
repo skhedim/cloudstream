@@ -21,6 +21,8 @@ French and English are listed first; other languages come from the extensions' m
 
 **Update (N)** installs or refreshes the packages that match the selection and keeps those already up to date. Failures are isolated and reported; running the action again retries them. The wizard never deletes existing files, and it preserves the categories it does not manage and the other native preferences.
 
+With the recommended selection, the app keeps the catalogue in line with the reviewed list at every start, as the desktop app does (`CatalogAutoUpdate`): reviewed extensions added to the list are installed once (one removed afterwards is not brought back), packages the catalogue installed that are no longer reviewed are uninstalled, and repositories left with none of them are removed. Extensions installed by hand stay.
+
 ## Architecture
 
 - `CatalogIndex` reads the public MegaRepo index and the repositories already configured, without running MegaProvider.

@@ -69,6 +69,22 @@ class CatalogTest {
         assertEquals(listOf(movy), CatalogAutoUpdate.plan(selection, available, setOf(kdesa.plugin.url), emptySet()))
         assertEquals(listOf(kdesa), CatalogAutoUpdate.plan(selection, available, emptySet(), setOf("movy")))
     }
+    @Test fun packagesNoLongerReviewedAndTheirEmptyRepositoriesAreRemovedButManualInstallsStay() {
+        val raghav = "https://raw.githubusercontent.com/KSHITIJ8473/raghav/builds/repo.json"
+        val phisher = "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/refs/heads/builds/repo.json"
+        val manualRepo = "https://raw.githubusercontent.com/someone/manual/builds/repo.json"
+        fun folder(repo: String) = "/data/files/Extensions/" + repo.replace(Regex("[^a-zA-Z0-9]"), "") + ".1"
+        val kdesa = PluginData("Kdesa", "https://raw.githubusercontent.com/KSHITIJ8473/raghav/builds/Kdesa.cs3", true, folder(raghav) + "/Kdesa.2.cs3", 6)
+        val multimovies = PluginData("Multimovies", "https://raw.githubusercontent.com/KSHITIJ8473/raghav/builds/Multimovies.cs3", true, folder(raghav) + "/Multimovies.3.cs3", 11)
+        val pahe = PluginData("AnimePahe", "https://raw.githubusercontent.com/phisher98/cloudstream-extensions-phisher/builds/AnimePahe.cs3", true, folder(phisher) + "/AnimePahe.4.cs3", 47)
+        val manual = PluginData("Manual", "https://raw.githubusercontent.com/someone/manual/builds/Manual.cs3", true, folder(manualRepo) + "/Manual.5.cs3", 1)
+        val managed = setOf(kdesa, multimovies, pahe).map { it.filePath }.toSet()
+        assertEquals(listOf(multimovies, pahe), CatalogAutoUpdate.stale(listOf(kdesa, multimovies, pahe, manual), managed))
+        val repositories = listOf(raghav, phisher, manualRepo).map { RepositoryData(null, it.substringAfter(".com/").substringBefore('/'), it) }
+        // raghav hosts reviewed extensions, the manual repository still has its package: only phisher goes.
+        assertEquals(listOf(phisher), CatalogAutoUpdate.unused(repositories, listOf(kdesa, manual)).map { it.url })
+    }
+
     @Test fun wizardUpdatesOnlyItsOwnCategoriesAndKeepsOtherNativePreferences() {
         val ctx = org.robolectric.RuntimeEnvironment.getApplication()
         val prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(ctx)
