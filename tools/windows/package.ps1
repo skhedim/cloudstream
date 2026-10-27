@@ -37,7 +37,11 @@ if ($hash -ne $MpvSha256) { Remove-Item $archive; throw "mpv archive checksum mi
 $extract = Join-Path $cache 'mpv'
 if (-not (Test-Path (Join-Path $extract 'mpv.exe'))) {
     New-Item -ItemType Directory -Force $extract | Out-Null
-    tar.exe -xf $archive -C $extract
+    # 7-Zip when installed (GitHub runners), else Windows' own tar, which reads 7z on Windows 11
+    # (a bare tar.exe could resolve to Git's GNU tar, which does not).
+    $sevenZip = @((Get-Command 7z.exe -ErrorAction SilentlyContinue).Source, "$env:ProgramFiles\7-Zip\7z.exe") |
+        Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($sevenZip) { & $sevenZip x $archive "-o$extract" -y | Out-Null } else { & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $extract }
     if ($LASTEXITCODE -ne 0) { throw 'mpv extraction failed' }
 }
 $mpvTarget = Join-Path $Build 'input\mpv'
