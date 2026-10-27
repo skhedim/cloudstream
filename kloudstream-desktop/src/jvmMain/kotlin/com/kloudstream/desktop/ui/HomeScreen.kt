@@ -53,13 +53,13 @@ import com.lagradost.cloudstream3.ui.home.aggregation.HomeShelf
 import kotlinx.coroutines.delay
 
 @Composable
-fun HomeScreen(onOpen: (MediaCard) -> Unit, onResume: (WatchEntry) -> Unit) {
+fun HomeScreen(onOpen: (MediaCard) -> Unit, onResume: (WatchEntry) -> Unit, onPlay: (MediaCard) -> Unit = onOpen) {
     val state by AppModel.home.state.collectAsState()
     val history by WatchHistory.entries.collectAsState()
     val resume = history.filter { !it.finished || it.family == "series" }.take(20)
     LazyColumn(Modifier.fillMaxSize().background(Kloud.Background), contentPadding = PaddingValues(bottom = 64.dp)) {
         item(key = "hero") {
-            if (state.hero.isNotEmpty()) Hero(state.hero, onOpen)
+            if (state.hero.isNotEmpty()) Hero(state.hero, onOpen, onPlay)
             else Spacer(Modifier.height(96.dp))
         }
         if (resume.isNotEmpty()) item(key = "resume") { ResumeRow(resume, onResume) }
@@ -82,7 +82,7 @@ fun HomeScreen(onOpen: (MediaCard) -> Unit, onResume: (WatchEntry) -> Unit) {
 
 /** Featured works of the week, rotating every 9 seconds. */
 @Composable
-private fun Hero(items: List<HeroItem>, onOpen: (MediaCard) -> Unit) {
+private fun Hero(items: List<HeroItem>, onOpen: (MediaCard) -> Unit, onPlay: (MediaCard) -> Unit) {
     var index by remember(items) { mutableIntStateOf(0) }
     val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -109,7 +109,7 @@ private fun Hero(items: List<HeroItem>, onOpen: (MediaCard) -> Unit) {
                     }
                     Spacer(Modifier.height(20.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        PrimaryButton("Lecture") { onOpen(item.card) }
+                        PrimaryButton("Lecture") { onPlay(item.card) }
                         SecondaryButton("Plus d'infos", Icons.Outlined.Info) { onOpen(item.card) }
                     }
                 }
@@ -137,7 +137,7 @@ fun MetaLine(rating: Double?, year: Int?, runtime: Int?, genres: List<String>) {
 private fun ResumeRow(entries: List<WatchEntry>, onResume: (WatchEntry) -> Unit) {
     Column(Modifier.padding(bottom = 28.dp)) {
         SectionTitle("Continuer à regarder")
-        LazyRow(contentPadding = PaddingValues(horizontal = 48.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        ScrollableRow {
             items(entries, key = { it.identity }) { entry ->
                 val card = remember(entry) { entry.toCard() }
                 val subtitle = if (entry.season != null && entry.episode != null) "S${entry.season} É${entry.episode}" else entry.year?.toString()
@@ -150,7 +150,8 @@ private fun ResumeRow(entries: List<WatchEntry>, onResume: (WatchEntry) -> Unit)
 /** History entries reuse the poster card with their saved title and artwork. */
 private fun WatchEntry.toCard(): MediaCard? = request?.let { MediaCard.of(title, year, poster, null, it) }
 
+/** Continue watching resumes playback right away (on the page, which stays open behind the player). */
 fun openEntry(entry: WatchEntry) {
     val request = entry.request ?: return
-    AppModel.navigator.open(Screen.Detail(request, entry.title, entry.poster))
+    AppModel.navigator.open(Screen.Detail(request, entry.title, entry.poster, autoplay = true))
 }

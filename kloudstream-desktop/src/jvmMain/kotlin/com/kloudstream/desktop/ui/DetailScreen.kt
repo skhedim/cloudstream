@@ -73,6 +73,15 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
         }
     }
     fun play(row: CanonicalEpisodeRow?) = scope.launch { model.playRequest(row)?.let { AppModel.player.play(it) } }
+    // "Lecture" on the home hero: play as soon as the page knows its sources (resume point for series).
+    var autoplayed by remember(screen) { androidx.compose.runtime.mutableStateOf(!screen.autoplay) }
+    LaunchedEffect(state.model) {
+        val loaded = state.model ?: return@LaunchedEffect
+        if (!autoplayed) {
+            autoplayed = true
+            play(if (loaded.family == "series") model.resumeRow() else null)
+        }
+    }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Kloud.Background)) {
         val headerHeight = (maxWidth * 0.48f).coerceIn(420.dp, 720.dp)

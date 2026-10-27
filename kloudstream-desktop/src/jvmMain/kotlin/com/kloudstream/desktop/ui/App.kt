@@ -76,6 +76,7 @@ fun Logo(size: Int) {
 }
 
 private fun open(card: MediaCard) = AppModel.navigator.open(Screen.Detail(card.request(), card.title, card.poster))
+private fun play(card: MediaCard) = AppModel.navigator.open(Screen.Detail(card.request(), card.title, card.poster, autoplay = true))
 
 @Composable
 private fun Shell() {
@@ -86,7 +87,7 @@ private fun Shell() {
             NavRail(screen)
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 when (screen) {
-                    Screen.Home -> HomeScreen(::open, ::openEntry)
+                    Screen.Home -> HomeScreen(::open, ::openEntry, ::play)
                     Screen.Search -> SearchScreen(::open)
                     Screen.Settings -> SettingsScreen()
                     is Screen.Detail -> DetailScreen(screen) { AppModel.navigator.back() }

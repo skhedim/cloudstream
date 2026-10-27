@@ -8,8 +8,9 @@ sealed interface Screen {
     data object Home : Screen
     data object Search : Screen
     data object Settings : Screen
-    /** [title]/[poster] show immediately while the page loads. */
-    data class Detail(val request: CanonicalDetailRequest, val title: String, val poster: String? = null) : Screen
+    /** [title]/[poster] show immediately while the page loads; [autoplay] starts playback once it has. */
+    data class Detail(val request: CanonicalDetailRequest, val title: String, val poster: String? = null,
+        val autoplay: Boolean = false) : Screen
 }
 
 /** A back stack of screens; the top-level destinations replace it. */

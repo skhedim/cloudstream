@@ -24,7 +24,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.foundation.gestures.animateScrollBy
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -89,7 +93,7 @@ fun CardRow(title: String, cards: List<MediaCard>, onOpen: (MediaCard) -> Unit, 
     if (cards.isEmpty()) return
     Column(Modifier.padding(bottom = 28.dp)) {
         SectionTitle(title)
-        LazyRow(contentPadding = PaddingValues(horizontal = 48.dp), horizontalArrangement = Arrangement.spacedBy(if (ranked) 4.dp else 14.dp)) {
+        ScrollableRow(spacing = if (ranked) 4.dp else 14.dp) {
             // Positional items: rows refresh while loading and must stay at their start.
             itemsIndexed(cards.take(if (ranked) 10 else 60)) { index, card ->
                 if (ranked) {
@@ -101,6 +105,37 @@ fun CardRow(title: String, cards: List<MediaCard>, onOpen: (MediaCard) -> Unit, 
                 } else PosterCard(card, { onOpen(card) })
             }
         }
+    }
+}
+
+/**
+ * A horizontal row with arrows on hover: the mouse wheel scrolls the page, so the arrows are how
+ * a mouse moves along a row (a page of cards per click, like streaming sites).
+ */
+@Composable
+fun ScrollableRow(spacing: Dp = 14.dp, content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+    val state = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    fun page(direction: Int) = scope.launch {
+        state.animateScrollBy(direction * state.layoutInfo.viewportSize.width * 0.8f)
+    }
+    Box(Modifier.fillMaxWidth().hoverable(interaction)) {
+        LazyRow(state = state, contentPadding = PaddingValues(horizontal = 48.dp), horizontalArrangement = Arrangement.spacedBy(spacing),
+            content = content)
+        if (hovered && state.canScrollBackward) RowArrow(Icons.AutoMirrored.Filled.KeyboardArrowLeft, Modifier.align(Alignment.CenterStart)) { page(-1) }
+        if (hovered && state.canScrollForward) RowArrow(Icons.AutoMirrored.Filled.KeyboardArrowRight, Modifier.align(Alignment.CenterEnd)) { page(1) }
+    }
+}
+
+@Composable
+private fun RowArrow(icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    Box(modifier.width(48.dp).height(PosterHeight).background(Color(if (hovered) 0xCC000000 else 0x99000000))
+        .hoverable(interaction).clickable(interaction, null, onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(if (hovered) 44.dp else 36.dp))
     }
 }
 

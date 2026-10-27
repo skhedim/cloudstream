@@ -10,5 +10,7 @@ Drive the Windows side of a WSL2 machine from WSL: build, run and inspect the de
 - `focus.ps1 -Title text [-Maximize]`: bring a window to the front (maximized on request).
 - `keys.ps1 -Keys "{DOWN}{ENTER}"`: send keys to the foreground window (`SendKeys` syntax).
 - `click.ps1 -X 100 -Y 200 [-Right] [-Double]`: click at screen coordinates.
+- `scroll.ps1 -X 100 -Y 200 [-Notches -3]`: turn the mouse wheel (negative scrolls down).
+- `move.ps1 -X 100 -Y 200`: move the pointer (hover) without clicking.
 
 `WIN_ROOT` overrides the workspace (default `C:\dev\kloudstream`).
