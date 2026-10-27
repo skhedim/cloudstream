@@ -147,7 +147,12 @@ object CanonicalDetailBuilder {
             }
         }
 
-        val compatible = remaining
+        // Providers in the viewer's language first: their page (plot, artwork) and episode titles
+        // represent the work, and their sources come first; original-version complements follow.
+        val viewer = PlaybackSources.viewerLanguage()
+        val compatible = remaining.sortedByDescending { item ->
+            item.api.lang.substringBefore('-').lowercase().let { it == viewer || it == "multi" || it == "mul" || it == "all" }
+        }
         val base = compatible.firstOrNull { it.binding.editions.isEmpty() } ?: compatible.firstOrNull() ?: return null
         val verified = request.copy(
             externalIds = known,
@@ -195,6 +200,10 @@ object CanonicalDetailBuilder {
         // Absolute numbering starts at S1E1: within the first season's known length (anime catalogues
         // next to season lists), absolute N is S1EN. Later numbers stay absolute, never guessed.
         val firstSeason = found.map { it.first }.filter { !it.absolute && it.season == 1 }.mapNotNull { it.episode }.maxOrNull()
+        val nativeProviders = compatible.filter { item ->
+            item.api.lang.substringBefore('-').lowercase().let { it == viewer || it == "multi" || it == "mul" || it == "all" }
+        }.map { it.binding.provider }.toSet()
+        val others = linkedMapOf<String, MutableList<Pair<Episode, Boolean>>>()
         val candidates = found.map { (candidate, episode) ->
             val placed = if (firstSeason != null && candidate.absolute && candidate.episode != null && candidate.episode <= firstSeason)
                 candidate.copy(season = 1, absolute = false) else candidate
@@ -204,9 +213,22 @@ object CanonicalDetailBuilder {
                         EpisodeNumbering.fromLabel(previous.name) != null) &&
                         !episode.name.isNullOrBlank() && EpisodeNumbering.fromLabel(episode.name) == null))
                 originals[key] = episode
+            others.getOrPut(key) { mutableListOf() } += episode to (candidate.binding.media.provider in nativeProviders)
             placed
         }
-        val rows = EpisodeAggregator.aggregate(candidates).map { CanonicalEpisodeRow(it, originals.getValue(it.key)) }
+        // The chosen episode keeps its title; missing artwork and runtime come from any provider,
+        // a missing plot only from one in the viewer's language.
+        fun completed(key: String): Episode {
+            val chosen = originals.getValue(key)
+            val all = others[key].orEmpty()
+            return chosen.copy(
+                posterUrl = chosen.posterUrl ?: all.firstNotNullOfOrNull { it.first.posterUrl },
+                description = chosen.description?.takeIf { it.isNotBlank() } ?: all.filter { it.second }
+                    .firstNotNullOfOrNull { it.first.description?.takeIf(String::isNotBlank) },
+                runTime = chosen.runTime ?: all.firstNotNullOfOrNull { it.first.runTime },
+            )
+        }
+        val rows = EpisodeAggregator.aggregate(candidates).map { CanonicalEpisodeRow(it, completed(it.key)) }
         return CanonicalDetailModel(verified, base, compatible, rejected, wantedFamily, rows, null,
             request.bindings.size, languages)
     }

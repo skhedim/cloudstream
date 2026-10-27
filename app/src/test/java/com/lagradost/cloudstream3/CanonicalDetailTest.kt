@@ -193,6 +193,13 @@ class CanonicalDetailTest {
     }
 
     @Test fun vfAndVostBecomeOneEpisodeWithVersionedSourcesAndNoDetailLanguageSelector() = runBlocking {
+        // A French-speaking viewer: the French page represents the work, the other provider complements it.
+        val language = com.lagradost.cloudstream4.aggregation.AggregationPlatform.metadataLanguage
+        com.lagradost.cloudstream4.aggregation.AggregationPlatform.metadataLanguage = { "fr-FR" }
+        try { vfAndVostOnOneEpisode() } finally { com.lagradost.cloudstream4.aggregation.AggregationPlatform.metadataLanguage = language }
+    }
+
+    private suspend fun vfAndVostOnOneEpisode() {
         apiA.lang = "fr"
         val anime = apiA.newAnimeLoadResponse("Fixture", binding(apiA).url, TvType.Anime) {
             episodes[DubStatus.Dubbed] = listOf(apiA.newEpisode("vf", { season = 1; episode = 1 }, fix = false))

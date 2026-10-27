@@ -318,7 +318,10 @@ including October 2026 releases and niche ones, 7 series, 10 anime) against the 
 No candidate found a title Movix lacks: they add the original version, and VOST with French
 subtitles, where the French catalogues only have VF. Anime catalogues list English titles: TMDB's
 English title is added to the search references and to detail completion, and an absolute
-episode list joins the first season within its known length (absolute N is S1EN). The extensions of three repositories
+episode list joins the first season within its known length (absolute N is S1EN). Pages of
+providers in the viewer's language represent the work (plot, artwork, episode titles) and their
+sources come first; an episode borrows missing artwork and runtime from any provider, and a
+missing plot only from one in the viewer's language. The extensions of three repositories
 (Phisher, CNC, raghav) show a donation request on Android, a `DonationDialogFragment`;
 `ExtensionPromptBlocker` removes it before it is built (the desktop never shows extension dialogs,
 see `ExtensionPrompts`). 19 candidates did not load on the desktop runtime (Android classes they

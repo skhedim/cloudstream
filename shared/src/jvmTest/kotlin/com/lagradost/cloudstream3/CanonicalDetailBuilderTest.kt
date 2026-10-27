@@ -31,6 +31,25 @@ class CanonicalDetailBuilderTest {
         return LoadedDetail(binding(api), response, api)
     }
 
+    @Test fun theViewersLanguageRepresentsTheWorkEvenWhenAnOriginalVersionPageCameFirst() = runBlocking {
+        AggregationPlatform.metadataLanguage = { "fr-FR" }
+        val english = object : MainAPI() { override var name = "En"; override var mainUrl = "https://en.example"; override var lang = "en" }
+        val french = object : MainAPI() { override var name = "Fr"; override var mainUrl = "https://fr.example"; override var lang = "fr" }
+        suspend fun page(api: MainAPI, plot: String, episodeName: String, still: String? = null, synopsis: String? = null) =
+            LoadedDetail(binding(api), api.newTvSeriesLoadResponse("Breaking Bad", "${api.mainUrl}/show", TvType.TvSeries,
+                listOf(api.newEpisode("${api.name}:1:1", initializer = { season = 1; episode = 1; name = episodeName; posterUrl = still; description = synopsis }, fix = false))) {
+                this.year = 2008; this.plot = plot
+            }, api)
+        val model = CanonicalDetailBuilder.build(request(english, french), listOf(page(english, "A chemistry teacher…", "Pilot",
+            "https://img.invalid/pilot.jpg", "Walter White learns…"), page(french, "Un professeur de chimie…", "Chute libre")))!!
+        assertEquals("Un professeur de chimie…", model.base.response.plot)
+        assertEquals("Chute libre", model.episodes.single().original.name)
+        // The French episode borrows the artwork, never an English plot.
+        assertEquals("https://img.invalid/pilot.jpg", model.episodes.single().original.posterUrl)
+        assertEquals(null, model.episodes.single().original.description)
+        assertEquals(listOf("Fr", "En"), model.episodes.single().episode.bindings.map { it.media.provider.name })
+    }
+
     @Test fun pagesOfAnotherWorkAreRejectedByYearOrTitleUnlessAnIdIsShared() = runBlocking {
         val model = CanonicalDetailBuilder.build(request(a, b, c), listOf(
             series(a), series(b, title = "Breaking Bad", year = 2015), series(c, title = "Breaking In", year = null),
