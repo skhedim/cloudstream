@@ -92,6 +92,7 @@ private fun Shell() {
                     Screen.Settings -> SettingsScreen()
                     is Screen.Detail -> DetailScreen(screen) { AppModel.navigator.back() }
                 }
+                SearchingOverlay()
             }
         }
         PlayerBar()
