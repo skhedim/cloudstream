@@ -9,7 +9,10 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withTimeoutOrNull
 
-/** Presentation metadata of a featured work (home hero), in the viewer's language. */
+/** One actor of a work's main cast. */
+data class CastMember(val name: String, val character: String?, val photoUrl: String?)
+
+/** Presentation metadata of a featured work (home hero, detail page), in the viewer's language. */
 data class Highlight(
     val id: ExternalMediaId,
     val title: String,
@@ -22,6 +25,10 @@ data class Highlight(
     val rating: Double?,
     val year: Int?,
     val runtimeMinutes: Int?,
+    /** Main cast in billing order (a series' cast across its seasons). */
+    val cast: List<CastMember> = emptyList(),
+    /** Official YouTube trailer, see [Trailers.pick]. */
+    val trailerUrl: String? = null,
 )
 
 /**
@@ -68,6 +75,15 @@ object DiscoveryCatalog {
         return ranks.orEmpty()
     }
 
+    /** A series' aggregate credits name each role in `roles`; TMDB writes roles in English. */
+    internal fun cast(credits: JsonNode, language: String): List<CastMember> = credits.take(20).mapNotNull { person ->
+        val name = person.path("name").asText("").takeIf(String::isNotBlank) ?: return@mapNotNull null
+        val character = person.path("character").asText("").ifBlank { person.path("roles").path(0).path("character").asText("") }
+            .let { if (language == "fr") it.replace("(voice)", "(voix)") else it }
+        CastMember(name, character.takeIf(String::isNotBlank),
+            person.path("profile_path").asText("").takeIf { it.startsWith("/") }?.let { IMAGE + "w185" + it })
+    }
+
     suspend fun highlight(id: ExternalMediaId, language: String = AggregationPlatform.metadataLanguage()): Highlight? {
         synchronized(highlights) { highlights[id]?.takeIf { System.currentTimeMillis() - it.at < 24 * 60 * 60_000L }?.let { return it.value } }
         val type = when (id.namespace) {
@@ -78,8 +94,10 @@ object DiscoveryCatalog {
         val result = try {
             withTimeoutOrNull(4_000) {
                 val short = language.substringBefore('-')
+                val credits = if (type == "movie") "credits" else "aggregate_credits"
                 val node = TmdbAccess.json("/$type/${id.value}", mapOf("language" to language,
-                    "append_to_response" to "images", "include_image_language" to "$short,en,null"))
+                    "append_to_response" to "images,$credits,videos", "include_image_language" to "$short,en,null",
+                    "include_video_language" to "$short,en"))
                 val logo = node.path("images").path("logos").let { logos ->
                     logos.firstOrNull { it.path("iso_639_1").asText() == short } ?: logos.firstOrNull { it.path("iso_639_1").asText() == "en" }
                 }?.path("file_path")?.asText()?.takeIf { it.startsWith("/") }
@@ -96,6 +114,8 @@ object DiscoveryCatalog {
                     date.take(4).toIntOrNull(),
                     if (type == "movie") node.path("runtime").asInt(0).takeIf { it > 0 }
                     else node.path("episode_run_time").firstOrNull()?.asInt(0)?.takeIf { it > 0 },
+                    cast(node.path(credits).path("cast"), short),
+                    Trailers.pick(node.path("videos").path("results"), short),
                 ).takeIf { it.title.isNotBlank() }
             }
         } catch (cancelled: CancellationException) { throw cancelled }

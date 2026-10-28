@@ -2673,11 +2673,20 @@ class ResultViewModel2 : ViewModel() {
         var firstPublished = false
         val started = System.currentTimeMillis()
         var firstPublishMs: Long? = null
+        // TMDB's cast of the work, fetched alongside the providers (as on the desktop page).
+        val highlight = java.util.concurrent.atomic.AtomicReference<com.lagradost.cloudstream4.aggregation.Highlight?>()
+        var castPublished = false
+        val highlightJob = pinned.externalIds.firstOrNull {
+            it.namespace == com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbMovie ||
+                it.namespace == com.lagradost.cloudstream4.domain.media.ExternalIdNamespace.TmdbTv
+        }?.let { id -> launch { highlight.set(com.lagradost.cloudstream4.aggregation.DiscoveryCatalog.highlight(id)) } }
 
         suspend fun publish(snapshot: List<com.lagradost.cloudstream4.aggregation.LoadedDetail>, final: Boolean) = publishLock.withLock {
+            val cast = highlight.get()
             if (!final && (firstPublished || snapshot.size <= published)) return@withLock
-            if (final && firstPublished && snapshot.size == published) return@withLock
-            val canonical = CanonicalDetail.create(pinned, snapshot) ?: return@withLock
+            if (final && firstPublished && snapshot.size == published && (castPublished || cast == null)) return@withLock
+            val canonical = CanonicalDetail.create(pinned, snapshot, cast) ?: return@withLock
+            castPublished = cast != null
             ensureActive()
             canonicalDetail = canonical
             val response = canonical.response
@@ -2724,6 +2733,7 @@ class ResultViewModel2 : ViewModel() {
             details + CanonicalDetailLoader().load(pinned.copy(bindings = extra))
         }
         if (completion != null) pinned = pinned.copy(completedAt = System.currentTimeMillis())
+        highlightJob?.join()
         ensureActive()
         publish(all, true)
         val canonical = canonicalDetail

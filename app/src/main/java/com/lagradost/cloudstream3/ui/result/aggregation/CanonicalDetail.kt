@@ -13,6 +13,7 @@ import com.lagradost.cloudstream3.utils.DataStoreHelper.currentAccount
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailBuilder
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailModel
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
+import com.lagradost.cloudstream4.aggregation.Highlight
 import com.lagradost.cloudstream4.aggregation.LoadedDetail
 import com.lagradost.cloudstream4.domain.media.*
 import java.security.MessageDigest
@@ -63,10 +64,11 @@ data class CanonicalDetail(
         const val UNLOCATED_SEASON = -1
         const val ABSOLUTE_SEASON = -2
 
-        suspend fun create(request: CanonicalDetailRequest, loaded: List<LoadedDetail>): CanonicalDetail? =
-            CanonicalDetailBuilder.build(request, loaded)?.let { project(it) }
+        /** [highlight]: the work's TMDB metadata, for its cast. */
+        suspend fun create(request: CanonicalDetailRequest, loaded: List<LoadedDetail>, highlight: Highlight? = null): CanonicalDetail? =
+            CanonicalDetailBuilder.build(request, loaded)?.let { project(it, highlight) }
 
-        suspend fun project(model: CanonicalDetailModel): CanonicalDetail? {
+        suspend fun project(model: CanonicalDetailModel, highlight: Highlight? = null): CanonicalDetail? {
             val request = model.request
             val base = model.base
             val routes = linkedMapOf<String, CanonicalEpisode>()
@@ -135,7 +137,10 @@ data class CanonicalDetail(
                 plot = model.compatible.firstNotNullOfOrNull { it.response.plot?.takeIf(String::isNotBlank) }
                 score = metadata.score
                 tags = metadata.tags?.toList()
-                actors = metadata.actors?.toList()
+                // TMDB's cast (photos and roles for every work), else the first provider naming actors.
+                actors = highlight?.cast?.takeIf { it.isNotEmpty() }
+                    ?.map { ActorData(Actor(it.name, it.photoUrl), roleString = it.character) }
+                    ?: model.compatible.firstNotNullOfOrNull { page -> page.response.actors?.takeIf { it.isNotEmpty() } }?.toList()
                 duration = metadata.duration
                 trailers = metadata.trailers.toMutableList()
                 recommendations = metadata.recommendations?.toList()

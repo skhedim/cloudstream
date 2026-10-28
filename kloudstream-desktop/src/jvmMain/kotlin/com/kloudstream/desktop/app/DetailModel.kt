@@ -14,11 +14,13 @@ import com.lagradost.cloudstream4.aggregation.CanonicalDetailModel
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailRequest
 import com.lagradost.cloudstream4.aggregation.CanonicalDetailStore
 import com.lagradost.cloudstream4.aggregation.CanonicalEpisodeRow
+import com.lagradost.cloudstream4.aggregation.CastMember
 import com.lagradost.cloudstream4.aggregation.DiscoveryCatalog
 import com.lagradost.cloudstream4.aggregation.Highlight
 import com.lagradost.cloudstream4.aggregation.LoadedDetail
 import com.lagradost.cloudstream4.aggregation.PlaybackWork
 import com.lagradost.cloudstream4.aggregation.RuntimeCatalog
+import com.lagradost.cloudstream4.aggregation.Trailers
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +52,14 @@ data class DetailState(
     val genres: List<String> get() = highlight?.genres?.takeIf { it.isNotEmpty() } ?: model?.base?.response?.tags.orEmpty().take(4)
     val runtimeMinutes: Int? get() = highlight?.runtimeMinutes ?: model?.base?.response?.duration
     val rating: Double? get() = highlight?.rating ?: model?.base?.response?.score?.toDouble(10)
+    /** TMDB's cast, else the first provider page that names actors. */
+    val cast: List<CastMember> get() = highlight?.cast?.takeIf { it.isNotEmpty() }
+        ?: model?.compatible?.firstNotNullOfOrNull { page -> page.response.actors?.takeIf { it.isNotEmpty() } }
+            ?.map { CastMember(it.actor.name, it.roleString, it.actor.image) }.orEmpty()
+    /** TMDB's trailer, else a provider's YouTube one, else a YouTube search (as on Android). */
+    val trailerUrl: String? get() = highlight?.trailerUrl
+        ?: model?.compatible?.firstNotNullOfOrNull { page -> page.response.trailers.firstOrNull { "youtube.com" in it.extractorUrl || "youtu.be" in it.extractorUrl }?.extractorUrl }
+        ?: title?.let { Trailers.searchUrl(it, year, AggregationPlatform.metadataLanguage().startsWith("fr")) }
 }
 
 /**
@@ -103,7 +113,9 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
             } else {
                 CanonicalDetailStore.remember(model.request.copy(completedAt = pinned.completedAt))
             }
-            _state.value = _state.value.copy(highlight = highlight.await() ?: _state.value.highlight)
+            // Works found without a TMDB ID often learn it from their provider pages.
+            val learned = model?.knownIds?.firstOrNull { it.namespace == ExternalIdNamespace.TmdbMovie || it.namespace == ExternalIdNamespace.TmdbTv }
+            _state.value = _state.value.copy(highlight = highlight.await() ?: _state.value.highlight ?: learned?.let { DiscoveryCatalog.highlight(it) })
         }
         scope.launch(Dispatchers.IO) {
             tmdbId(initial)?.let { DiscoveryCatalog.highlight(it) }?.let { found ->

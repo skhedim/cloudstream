@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +59,7 @@ import com.kloudstream.desktop.downloads.DownloadState
 import com.kloudstream.desktop.downloads.Downloads
 import com.kloudstream.desktop.library.WatchHistory
 import com.lagradost.cloudstream4.aggregation.CanonicalEpisodeRow
+import com.lagradost.cloudstream4.aggregation.CastMember
 import kotlinx.coroutines.launch
 
 @Composable
@@ -108,7 +110,8 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                             Text(it, color = Color.White, fontSize = 16.sp, lineHeight = 23.sp, maxLines = 5, overflow = TextOverflow.Ellipsis)
                         }
                         Spacer(Modifier.height(22.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             val detail = state.model
                             when {
                                 detail == null && state.loading -> LoadingLabel("Recherche du titre chez les sources…")
@@ -126,11 +129,28 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                                     resume?.let { Text(DetailModel.episodeLabel(it), color = Kloud.Muted, maxLines = 1) }
                                 }
                             }
+                            // In the browser, like Android's trailer button.
+                            state.trailerUrl?.let { url ->
+                                SecondaryButton("Bande-annonce", KloudIcons.Trailer) {
+                                    runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI(url)) }
+                                }
+                            }
                             if (detail != null && state.loading) LoadingLabel("Autres sources en cours…")
                         }
                     }
                     IconButton(onClick = onBack, modifier = Modifier.padding(16.dp).background(Color(0x66000000), RoundedCornerShape(50))) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Retour", tint = Color.White)
+                    }
+                }
+            }
+            val cast = state.cast
+            if (cast.isNotEmpty()) {
+                item(key = "cast") {
+                    Column(Modifier.padding(top = 4.dp, bottom = 24.dp)) {
+                        SectionTitle("Distribution")
+                        ScrollableRow(spacing = 18.dp, arrowHeight = 150.dp) {
+                            items(cast) { CastItem(it) }
+                        }
                     }
                 }
             }
@@ -153,6 +173,25 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                         downloadOf(row.episode.key), { download(row) }) { play(row) }
                 }
             }
+        }
+    }
+}
+
+/** A round photo (initials without one), the actor's name and role. */
+@Composable
+private fun CastItem(member: CastMember) {
+    Column(Modifier.width(112.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(96.dp).clip(RoundedCornerShape(50)).background(Kloud.SurfaceHigh), contentAlignment = Alignment.Center) {
+            val initials = member.name.split(' ').filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }
+            Text(initials, color = Kloud.Muted, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+            if (member.photoUrl != null) NetImage(member.photoUrl, Modifier.matchParentSize(), placeholder = Color.Transparent)
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(member.name, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2,
+            overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        member.character?.let {
+            Text(it, color = Kloud.Muted, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }
