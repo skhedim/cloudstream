@@ -80,6 +80,8 @@ class PlaybackController(private val scope: CoroutineScope) {
         const val VERSION_KEY = "source_version"
         const val SUBTITLE_SCALE_KEY = "subtitle_scale"
         const val AUTOPLAY_NEXT_KEY = "autoplay_next"
+        /** Sent by the player's "next episode" button (`script-message`). */
+        const val NEXT_EPISODE_MESSAGE = "kloudstream-next-episode"
     }
     private val _state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val state: StateFlow<PlaybackState> get() = _state
@@ -279,6 +281,8 @@ class PlaybackController(private val scope: CoroutineScope) {
                 listOf("set_property", "user-agent", agent),
                 listOf("set_property", "start", if (startMs > 1_000) "%.1f".format(java.util.Locale.ROOT, startMs / 1000.0) else "none"),
                 listOf("set_property", "force-media-title", title),
+                // Shows the player's "next episode" button (packaging/mpv/scripts/kloudstream.lua).
+                listOf("set_property", "user-data/kloudstream/next-episode", request.next != null),
                 listOf("loadfile", link.url, "replace"),
             )
             publishPlaying()
@@ -317,6 +321,9 @@ class PlaybackController(private val scope: CoroutineScope) {
                     "error" -> scope.launch(Dispatchers.IO) { onError(node.path("file_error").asText("error")) }
                     "eof" -> scope.launch(Dispatchers.IO) { onEnded() }
                 }
+                "client-message" -> if (node.path("args").path(0).asText() == NEXT_EPISODE_MESSAGE) {
+                    scope.launch(Dispatchers.IO) { onNextRequested() }
+                }
             }
         }
 
@@ -333,20 +340,31 @@ class PlaybackController(private val scope: CoroutineScope) {
         /**
          * French subtitles are selected for original audio only: a VO source, or one that is VOST
          * through subtitles fetched for it (those first). VF and VOST streams carry their own.
+         * A source without French subtitles still offers OpenSubtitles' ones, unselected: for its
+         * original audio track, or for viewers who want them.
          */
         private fun addSubtitles(player: Mpv) {
             val playing = current
             val list = synchronized(subtitles) { subtitles.toList() }.sortedBy { if (ExternalSubtitles.isExternal(it)) 0 else 1 }
-            if (list.isEmpty()) return
             val wantFrench = playing != null && (playing.metadata.addedSubtitles || playing.version == SourceVersion.VO)
             var selected = false
             val commands = list.take(12).map { subtitle ->
-                val french = subtitle.lang.lowercase().let { it.startsWith("fr") || "fran" in it }
-                val flag = if (wantFrench && french && !selected) { selected = true; "select" } else "auto"
+                val flag = if (wantFrench && isFrench(subtitle) && !selected) { selected = true; "select" } else "auto"
                 listOf("sub-add", subtitle.url, flag, subtitle.lang, subtitle.lang)
             }
-            player.commands(*commands.toTypedArray())
+            if (commands.isNotEmpty()) player.commands(*commands.toTypedArray())
+            val work = request.work ?: return
+            if (list.any(::isFrench)) return
+            scope.launch(Dispatchers.IO) {
+                val found = runCatching { ExternalSubtitles.french(work) }.getOrDefault(emptyList())
+                if (cancelled || player !== mpv || current !== playing || found.isEmpty()) return@launch
+                player.commands(*found.mapIndexed { index, subtitle ->
+                    listOf("sub-add", subtitle.url, if (wantFrench && index == 0) "select" else "auto", subtitle.lang, "fr")
+                }.toTypedArray())
+            }
         }
+
+        private fun isFrench(subtitle: SubtitleFile) = subtitle.lang.lowercase().let { it.startsWith("fr") || "fran" in it }
 
         private fun checkTrial() {
             val source = current ?: return
@@ -422,6 +440,14 @@ class PlaybackController(private val scope: CoroutineScope) {
         private fun saveProgress() {
             if (durationMs <= 0 && positionMs <= 0) return
             WatchHistory.save(request.history.copy(positionMs = positionMs, durationMs = durationMs))
+        }
+
+        /** The player's "next episode" button: whatever the autoplay setting, keeping this one's position. */
+        private suspend fun onNextRequested() {
+            if (cancelled) return
+            saveProgress()
+            val next = request.next?.let { runCatching { it() }.getOrNull() } ?: return
+            if (!cancelled) play(next)
         }
 
         private suspend fun onEnded() {
