@@ -53,8 +53,13 @@ object WatchHistory {
     fun resumePositionMs(identity: String, episodeKey: String?): Long =
         progress(identity, episodeKey)?.takeIf { !it.finished && it.positionMs > 30_000 }?.positionMs ?: 0
 
+    private var lastStamp = 0L
+
+    /** Strictly increasing, so two saves within one millisecond keep their order (most recent first). */
+    @Synchronized private fun stamp(): Long = maxOf(System.currentTimeMillis(), lastStamp + 1).also { lastStamp = it }
+
     fun save(entry: WatchEntry) {
-        val now = System.currentTimeMillis()
+        val now = stamp()
         json.set(progressKey(entry.identity, entry.episodeKey), mapper.valueToTree(Progress(entry.positionMs, entry.durationMs, now)))
         json.set("item/${entry.identity}", mapper.valueToTree(entry.copy(updatedAt = now)))
         publish()
