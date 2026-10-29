@@ -10,6 +10,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -53,6 +55,13 @@ object AppModel {
                 _startup.value = Startup.Ready
                 home.load()
                 MainActivity.reloadHomeEvent += { home.load() }
+                // For you follows the history: a few seconds after it changes (playback saves often).
+                scope.launch {
+                    WatchHistory.entries.drop(1).collectLatest {
+                        kotlinx.coroutines.delay(5_000)
+                        home.refreshForYou()
+                    }
+                }
                 // Updates are installed in the background and applied right away.
                 val changed = ExtensionManager.syncRecommended()
                 if (changed.isNotEmpty()) {

@@ -8,12 +8,22 @@ import com.lagradost.cloudstream3.ui.home.aggregation.AggregatedHomeProjector
 import com.lagradost.cloudstream3.ui.home.aggregation.HomeFeed
 import com.lagradost.cloudstream3.ui.home.aggregation.HomeFeedPolicy
 import com.lagradost.cloudstream3.ui.home.aggregation.HomeShelf
+import com.lagradost.cloudstream3.ui.home.aggregation.HomeShelfItems
+import com.lagradost.cloudstream3.ui.home.aggregation.PersonalizedRecommendationCatalog
+import com.lagradost.cloudstream3.ui.home.aggregation.PersonalizedRecommendationsLoader
+import com.lagradost.cloudstream3.ui.home.aggregation.RecommendationBatch
+import com.lagradost.cloudstream3.ui.home.aggregation.RecommendationHistory
+import com.lagradost.cloudstream3.ui.home.aggregation.RecommendationPlan
+import com.lagradost.cloudstream3.ui.home.aggregation.RecommendationSource
+import com.kloudstream.desktop.library.WatchHistory
 import com.lagradost.cloudstream4.aggregation.AggregationPlatform
 import com.lagradost.cloudstream4.aggregation.DiscoveryCatalog
 import com.lagradost.cloudstream4.aggregation.Highlight
 import com.lagradost.cloudstream4.aggregation.PlaybackSources
 import com.lagradost.cloudstream4.aggregation.RegisteredProvider
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
+import com.lagradost.cloudstream4.domain.media.ExternalMediaId
+import com.lagradost.cloudstream4.domain.media.MediaCandidate
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,13 +60,19 @@ data class HomeState(
 
 /**
  * The discovery home: first pages of the providers in the viewer's language, merged into one card
- * per work by the shared projector, ranked with this week's TMDB trends, with a featured hero.
+ * per work by the shared projector, ranked with this week's TMDB trends, with a featured hero and,
+ * as on Android, "For you" rows from the viewing history.
  */
 class HomeModel(private val scope: CoroutineScope) {
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> get() = _state
     private var job: Job? = null
     private val snapshotFile get() = java.io.File(com.kloudstream.desktop.core.AppDirs.data, "home.json")
+    private val forYou = PersonalizedRecommendationsLoader(related = PersonalizedRecommendationCatalog::related)
+    @Volatile private var plan = RecommendationPlan(emptyList(), emptyList())
+    @Volatile private var suggestions: List<RecommendationBatch> = emptyList()
+    /** What the last complete home was made of, to update its For you rows alone. */
+    @Volatile private var shown: Triple<AggregatedHomeProjector, List<HomeFeed>, Map<ExternalMediaId, Int>>? = null
 
     /** Shows the last session's home while the providers load. */
     fun restore() {
@@ -84,22 +100,22 @@ class HomeModel(private val scope: CoroutineScope) {
         job = scope.launch(Dispatchers.IO) {
             _state.value = _state.value.copy(loading = true, status = if (_state.value.rows.isEmpty()) "Chargement des nouveautés…" else "Mise à jour des nouveautés…")
             val restored = _state.value.rows.isNotEmpty()
-            val viewer = PlaybackSources.viewerLanguage()
-            val providers = AggregationPlatform.registry.providers().filter { it.api.hasMainPage }
-                .filter { it.api.lang.substringBefore('-').lowercase() in setOf(viewer, "multi", "mul", "all") }
+            val providers = nativeProviders().filter { it.api.hasMainPage }
             val feeds = arrayOfNulls<HomeFeed>(providers.size)
             val projector = AggregatedHomeProjector()
             val lock = Mutex()
             var trending = emptyMap<com.lagradost.cloudstream4.domain.media.ExternalMediaId, Int>()
             var heroBuilt = false
             suspend fun publish(final: Boolean) = lock.withLock {
-                val shelves = projector.project(feeds.filterNotNull(), trending = trending)
-                val rows = shelves.map { row -> HomeRow(row.shelf, shelfTitle(row.shelf), row.cards.map { MediaCard(it.media, it.responses) }) }
+                val rows = rows(projector.project(feeds.filterNotNull(), suggestions, plan.excluded, trending))
                 // The restored home stays until the new one is complete enough to replace it.
                 if (restored && !final && rows.sumOf { it.cards.size } < 60) return@withLock
                 _state.value = _state.value.copy(rows = rows, loading = !final,
                     status = if (final) null else "Chargement des nouveautés…")
-                if (final) save(_state.value)
+                if (final) {
+                    save(_state.value)
+                    shown = Triple(projector, feeds.filterNotNull(), trending)
+                }
                 val featured = rows.firstOrNull { it.shelf == HomeShelf.Top10 } ?: rows.firstOrNull { it.shelf == HomeShelf.Recent }
                 if (featured != null && (!heroBuilt || final && (_state.value.hero.isEmpty() || restored)) && (featured.cards.size >= 5 || final)) {
                     heroBuilt = true
@@ -110,6 +126,9 @@ class HomeModel(private val scope: CoroutineScope) {
                 launch {
                     trending = DiscoveryCatalog.trendingRanks()
                     if (feeds.any { it != null }) publish(false)
+                }
+                launch {
+                    if (loadSuggestions(refresh = true) && feeds.any { it != null }) publish(false)
                 }
                 val semaphore = Semaphore(4)
                 providers.mapIndexed { index, provider ->
@@ -122,6 +141,49 @@ class HomeModel(private val scope: CoroutineScope) {
             }
             publish(true)
             if (projector.refine()) publish(true)
+        }
+    }
+
+    /** Providers in the viewer's language: other catalogues lead to works without sources in it. */
+    private fun nativeProviders(): List<RegisteredProvider> {
+        val viewer = PlaybackSources.viewerLanguage()
+        return AggregationPlatform.registry.providers()
+            .filter { it.api.lang.substringBefore('-').lowercase() in setOf(viewer, "multi", "mul", "all") }
+    }
+
+    private fun rows(shelves: List<HomeShelfItems>) =
+        shelves.map { row -> HomeRow(row.shelf, shelfTitle(row.shelf), row.cards.map { MediaCard(it.media, it.responses) }) }
+
+    private fun historyPlan(providers: List<RegisteredProvider>) = historyPlan(WatchHistory.entries.value, providers)
+
+    /**
+     * The related works the providers list on the pages of the watched works, kept when TMDB
+     * corroborates them. Returns whether the history (and so the suggestions) changed.
+     */
+    private suspend fun loadSuggestions(refresh: Boolean): Boolean {
+        val providers = nativeProviders()
+        val next = historyPlan(providers)
+        if (!refresh && next.seeds.map { it.key } == plan.seeds.map { it.key } &&
+            next.excluded.map { it.binding }.toSet() == plan.excluded.map { it.binding }.toSet()) return false
+        val loaded = forYou.load("desktop", next.seeds, refresh) { source ->
+            val api = providers.firstOrNull { it.key == source.binding.provider }?.api ?: return@load null
+            val response = AggregationPlatform.gateway.load(api, source.binding.url) ?: return@load null
+            response.recommendations?.takeIf { next.seeds.firstOrNull { seed -> source in seed.sources }?.accepts(source, response) == true }
+        }
+        plan = next
+        suggestions = loaded
+        AppLog.info("For you: ${next.seeds.size} watched works, ${loaded.sumOf { it.items.size }} suggestions")
+        return true
+    }
+
+    /** After a viewing: the For you rows follow the history without reloading the providers. */
+    fun refreshForYou() {
+        if (job?.isActive == true) return
+        scope.launch(Dispatchers.IO) {
+            val (projector, feeds, trending) = shown ?: return@launch
+            if (!loadSuggestions(refresh = false) || job?.isActive == true) return@launch
+            _state.value = _state.value.copy(rows = rows(projector.project(feeds, suggestions, plan.excluded, trending)))
+            save(_state.value)
         }
     }
 
@@ -161,6 +223,23 @@ class HomeModel(private val scope: CoroutineScope) {
     }
 
     companion object {
+        /**
+         * The viewing history as recommendation evidence, as on Android: works watched for 30 seconds
+         * or finished are seeds, every provider page of each is a binding, and watched works are excluded.
+         */
+        fun historyPlan(entries: List<com.kloudstream.desktop.library.WatchEntry>, providers: List<RegisteredProvider>): RecommendationPlan =
+            RecommendationPlan.from(entries.mapNotNull { entry ->
+                val request = entry.request ?: return@mapNotNull null
+                val candidates = request.bindings.map { binding ->
+                    MediaCandidate(binding.mediaBinding(), request.title, request.year, request.kind, request.aliases,
+                        request.externalIds, binding.editions)
+                }
+                val sources = request.bindings.mapNotNull { binding ->
+                    providers.firstOrNull { it.key == binding.provider }?.let { RecommendationSource(binding.mediaBinding(), it.api.javaClass.name) }
+                }
+                RecommendationHistory(candidates, sources, entry.updatedAt, entry.positionMs, entry.finished)
+            })
+
         fun shelfTitle(shelf: HomeShelf): String = when (shelf) {
             HomeShelf.Top10 -> "Top 10 de la semaine"
             HomeShelf.Recent -> "Derniers ajouts"
