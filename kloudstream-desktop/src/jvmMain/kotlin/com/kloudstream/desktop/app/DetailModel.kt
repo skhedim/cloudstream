@@ -22,6 +22,13 @@ import com.lagradost.cloudstream4.aggregation.PlaybackWork
 import com.lagradost.cloudstream4.aggregation.RuntimeCatalog
 import com.lagradost.cloudstream4.aggregation.Trailers
 import com.lagradost.cloudstream4.domain.media.ExternalIdNamespace
+import com.lagradost.cloudstream4.domain.media.MediaAggregator
+import com.lagradost.cloudstream4.domain.media.ProviderBinding
+import com.lagradost.cloudstream4.aggregation.SearchMediaMapper
+import com.lagradost.cloudstream3.ui.home.aggregation.HomeFeedPolicy
+import com.lagradost.cloudstream3.ui.home.aggregation.PersonalizedRecommendationCatalog
+import com.lagradost.cloudstream3.ui.home.aggregation.RecommendationSeed
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -42,6 +49,8 @@ data class DetailState(
     val highlight: Highlight? = null,
     val seasons: List<SeasonGroup> = emptyList(),
     val error: String? = null,
+    /** Similar works, see [DetailModel.similar]. */
+    val similar: List<MediaCard> = emptyList(),
 ) {
     val title: String? get() = highlight?.title?.takeIf { it.isNotBlank() } ?: model?.request?.title
     val overview: String? get() = highlight?.overview ?: model?.compatible?.firstNotNullOfOrNull { it.response.plot?.takeIf(String::isNotBlank) }
@@ -112,6 +121,7 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
                 _state.value = _state.value.copy(loading = false, error = "Impossible de charger ce titre pour le moment.")
             } else {
                 CanonicalDetailStore.remember(model.request.copy(completedAt = pinned.completedAt))
+                _state.value = _state.value.copy(similar = runCatching { similar(model) }.getOrDefault(emptyList()))
             }
             // Works found without a TMDB ID often learn it from their provider pages.
             val learned = model?.knownIds?.firstOrNull { it.namespace == ExternalIdNamespace.TmdbMovie || it.namespace == ExternalIdNamespace.TmdbTv }
@@ -125,6 +135,36 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
     }
 
     @Volatile private var latest: List<LoadedDetail> = emptyList()
+
+    /**
+     * Similar works, as under Android's detail page: the related titles the provider pages list
+     * (from every source of the work, not only the first), one card per work. Titles TMDB also
+     * relates to this one come first, then those several sources list, the work itself left out.
+     */
+    private suspend fun similar(model: CanonicalDetailModel): List<MediaCard> {
+        val own = model.request.bindings.map { it.mediaBinding() }.toSet()
+        val listed = model.compatible.flatMap { page -> page.response.recommendations.orEmpty().take(40).map { page to it } }
+            .filter { (_, item) -> item.type == null || item.type in HomeFeedPolicy.videoTypes }
+        if (listed.isEmpty()) return emptyList()
+        val responses = listed.associate { (page, item) -> ProviderBinding(page.binding.provider, item.url) to item }
+        val order = responses.keys.withIndex().associate { it.value to it.index }
+        val selfKey = MediaAggregator.matchKey(model.request.title)
+        val works = MediaAggregator().aggregate(listed.map { (page, item) ->
+            SearchMediaMapper.candidate(page.binding.provider, item, page.api.javaClass.name)
+        }).filter { media ->
+            media.bindings.none { it in own } && !(MediaAggregator.matchKey(media.title) == selfKey && media.year == model.request.year)
+        }
+        val seed = RecommendationSeed("similar", emptyList(), model.request.kind, model.request.title, model.request.year, model.knownIds)
+        val references = withTimeoutOrNull(3_000) { PersonalizedRecommendationCatalog.related(seed) }.orEmpty()
+        fun related(media: com.lagradost.cloudstream4.domain.media.CanonicalMedia) = references.any { reference ->
+            reference.id in media.externalIds || ((media.year == null || reference.year == null || media.year == reference.year) &&
+                MediaAggregator.matchKey(media.title) in (reference.alternateTitles + reference.title).map(MediaAggregator::matchKey))
+        }
+        return works.sortedWith(compareByDescending<com.lagradost.cloudstream4.domain.media.CanonicalMedia> { related(it) }
+            .thenByDescending { media -> media.bindings.map { it.provider }.distinct().size }
+            .thenBy { media -> media.bindings.minOf { order.getValue(it) } })
+            .take(30).map { media -> MediaCard(media, media.bindings.map { responses.getValue(it) }) }
+    }
 
     private fun tmdbId(request: CanonicalDetailRequest) = request.externalIds.firstOrNull {
         it.namespace == ExternalIdNamespace.TmdbMovie || it.namespace == ExternalIdNamespace.TmdbTv

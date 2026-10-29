@@ -173,6 +173,16 @@ fun DetailScreen(screen: Screen.Detail, onBack: () -> Unit) {
                         downloadOf(row.episode.key), { download(row) }) { play(row) }
                 }
             }
+            // As under Android's detail page: what the sources relate to this work.
+            if (state.similar.isNotEmpty()) {
+                item(key = "similar") {
+                    Box(Modifier.padding(top = 24.dp)) {
+                        CardRow("Titres similaires", state.similar, { card ->
+                            AppModel.navigator.open(Screen.Detail(card.request(), card.title, card.poster))
+                        })
+                    }
+                }
+            }
         }
     }
 }
