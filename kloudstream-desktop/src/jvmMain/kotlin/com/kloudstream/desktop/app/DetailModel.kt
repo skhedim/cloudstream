@@ -36,6 +36,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -95,8 +96,8 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
                 published = true
                 _state.value = _state.value.copy(loading = !final, model = model, seasons = seasons(model))
             }
-            // Works found in one catalogue are completed with the other providers once a day.
-            val completion = if (pinned.completedAt?.let { System.currentTimeMillis() - it < 24 * 60 * 60_000L } == true) null
+            // Works found in one catalogue are completed with the other providers (CanonicalBindingCompleter.due).
+            val completion = if (!CanonicalBindingCompleter.due(pinned)) null
                 else async { CanonicalBindingCompleter().complete(pinned, providers) }
             val early = launch {
                 delay(4_000)
@@ -183,6 +184,8 @@ class DetailModel(private val scope: CoroutineScope, private val initial: Canoni
 
     /** The movie, or [row] of the series, ready to play; [next] chains the following episode. */
     suspend fun playRequest(row: CanonicalEpisodeRow? = null): PlayRequest? {
+        // The page may still be looking for other providers: wait for their sources (15 s at most).
+        if (_state.value.loading) withTimeoutOrNull(15_000) { state.first { !it.loading } }
         val model = _state.value.model ?: return null
         val request = model.request
         val ids = request.externalIds

@@ -212,7 +212,10 @@ A card found in one catalogue only (home, recommendations) is completed on its f
 12 s in total) with the canonical title, then the original title. It is strict: a shared ID, or
 the same title, family and a known year at most one apart, with no contradicting ID; season
 entries need a shared ID. Found pages are verified again by the builder. `completedAt` limits
-this to once a day per work.
+this to once a day per work, or every 30 minutes while a single provider offers it (a catalogue
+without streams, a new release not yet at the others): `CanonicalBindingCompleter.due`. Playing
+waits for the page's final sources (15 s at most), so a play started early does not use only the
+first catalogue.
 
 ### Sources and playback (v2)
 Every source gets a **version** and a **check** before it can win:

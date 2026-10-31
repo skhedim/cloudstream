@@ -102,4 +102,17 @@ class CanonicalBindingCompleter(
         }
         return synchronized(found) { found.toList() }
     }
+
+    companion object {
+        /**
+         * Whether to look for the work at other providers now: once a day, or every 30 minutes
+         * while a single provider offers it. A home card often comes from one catalogue, which may
+         * offer no stream (Frembed FR), and a new release reaches the other providers within days.
+         */
+        fun due(request: CanonicalDetailRequest, now: Long = System.currentTimeMillis()): Boolean {
+            val at = request.completedAt ?: return true
+            val single = request.bindings.map { it.provider }.distinct().size < 2
+            return now - at >= if (single) 30 * 60_000L else 24 * 60 * 60_000L
+        }
+    }
 }

@@ -97,4 +97,17 @@ class CanonicalBindingCompleterTest {
         // Nothing enabled: the context stays as it was, so the page can report what is missing.
         assertEquals(saved, saved.restrictedTo(emptyList()))
     }
+
+    @Test fun aWorkOfferedByOneProviderIsLookedForAgainSoonerThanOneOfferedByMany() {
+        val now = 10 * 24 * 60 * 60_000L
+        fun request(vararg providers: String, completedAt: Long?) = CanonicalDetailRequest("fixture", "Toy Story 5", null, MediaKind.Movie,
+            emptySet(), providers.map { DetailBinding(ProviderKey(it, "https://$it.invalid"), "https://$it.invalid/toy-story-5") },
+            completedAt = completedAt)
+        assertTrue(CanonicalBindingCompleter.due(request("A", completedAt = null), now))
+        // A single catalogue (perhaps without streams): again after 30 minutes, not a day.
+        assertFalse(CanonicalBindingCompleter.due(request("A", completedAt = now - 10 * 60_000L), now))
+        assertTrue(CanonicalBindingCompleter.due(request("A", completedAt = now - 31 * 60_000L), now))
+        assertFalse(CanonicalBindingCompleter.due(request("A", "B", completedAt = now - 2 * 60 * 60_000L), now))
+        assertTrue(CanonicalBindingCompleter.due(request("A", "B", completedAt = now - 25 * 60 * 60_000L), now))
+    }
 }

@@ -1565,6 +1565,8 @@ class ResultViewModel2 : ViewModel() {
             }
 
             ACTION_PLAY_EPISODE_IN_PLAYER -> {
+                // The canonical page may still be looking for other providers: their sources first.
+                canonicalSettled?.let { settled -> kotlinx.coroutines.withTimeoutOrNull(15_000) { settled.await() } }
                 val list = HashMap<String, String>(currentResponse?.syncData ?: emptyMap())
                 val generator = generator ?: return
 
@@ -2658,6 +2660,22 @@ class ResultViewModel2 : ViewModel() {
         activity: Activity?, request: CanonicalDetailRequest, showFillers: Boolean,
         autostart: AutoResume?, loadTrailers: Boolean,
     ) = kotlinx.coroutines.coroutineScope {
+        // Playing waits for the page's final sources (completion included), see canonicalSettled.
+        val settled = kotlinx.coroutines.CompletableDeferred<Unit>().also { canonicalSettled = it }
+        try { loadCanonicalPage(activity, request, showFillers, autostart, loadTrailers) }
+        finally { settled.complete(Unit) }
+    }
+
+    /**
+     * Completed once the canonical page has its final sources. A play started from the first,
+     * early page (one provider, often a catalogue without streams) waits for it.
+     */
+    @Volatile private var canonicalSettled: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+
+    private suspend fun loadCanonicalPage(
+        activity: Activity?, request: CanonicalDetailRequest, showFillers: Boolean,
+        autostart: AutoResume?, loadTrailers: Boolean,
+    ) = kotlinx.coroutines.coroutineScope {
         val available = context?.let { ctx ->
             com.lagradost.cloudstream3.ui.search.SearchScope.availableProviders(ctx, true)
         }.orEmpty().map { api ->
@@ -2710,8 +2728,8 @@ class ResultViewModel2 : ViewModel() {
         }
 
         // Look for the same work at providers that are not bound yet (home/recommendation cards
-        // usually come from one catalogue), at most once a day per work.
-        val completion = if (pinned.completedAt?.let { System.currentTimeMillis() - it < 24 * 60 * 60_000L } == true) null
+        // usually come from one catalogue): see CanonicalBindingCompleter.due.
+        val completion = if (!com.lagradost.cloudstream4.aggregation.CanonicalBindingCompleter.due(pinned)) null
             else async(kotlinx.coroutines.Dispatchers.IO) {
                 com.lagradost.cloudstream4.aggregation.CanonicalBindingCompleter().complete(pinned, available)
             }
