@@ -542,6 +542,27 @@ object DataStoreHelper {
         removeKey("$currentAccount/$RESULT_WATCH_STATE_DATA", id.toString())
     }
 
+    /**
+     * KloudStream: works finished on this account, by parent ID, with the time they were finished.
+     * Finishing removes them from Continue watching; "For you" still uses them, as on desktop.
+     */
+    private const val FINISHED_WORKS = "kloudstream_finished_works"
+    fun setFinished(parentId: Int?) {
+        if (parentId == null) return
+        val folder = "$currentAccount/$FINISHED_WORKS"
+        setKey(folder, parentId.toString(), System.currentTimeMillis())
+        // The 50 most recent are enough for suggestions.
+        getFinishedWorks().drop(50).forEach { (id, _) -> removeKey(folder, id.toString()) }
+    }
+    /** Most recent first. */
+    fun getFinishedWorks(): List<Pair<Int, Long>> {
+        val folder = "$currentAccount/$FINISHED_WORKS"
+        return getKeys(folder).orEmpty().mapNotNull { key ->
+            val id = key.removePrefix("$folder/").toIntOrNull() ?: return@mapNotNull null
+            getKey<Long>(folder, id.toString())?.let { id to it }
+        }.sortedByDescending { it.second }
+    }
+
     fun getAllResumeStateIds(): List<Int>? {
         val folder = "$currentAccount/$RESULT_RESUME_WATCHING"
         return getKeys(folder)?.mapNotNull {
@@ -729,10 +750,12 @@ object DataStoreHelper {
             when (val newMeta = currentEpisode) {
                 is ResultEpisode -> {
                     removeLastWatched(newMeta.parentId)
+                    setFinished(newMeta.parentId)
                 }
 
                 is ExtractorUri -> {
                     removeLastWatched(newMeta.parentId)
+                    setFinished(newMeta.parentId)
                 }
             }
         } else {

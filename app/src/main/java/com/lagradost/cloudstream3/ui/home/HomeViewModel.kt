@@ -55,6 +55,7 @@ import com.lagradost.cloudstream3.utils.DataStoreHelper.getLastWatched
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getResultWatchState
 import com.lagradost.cloudstream3.utils.DataStoreHelper.getViewPos
 import com.lagradost.cloudstream3.utils.downloader.DownloadObjects
+import com.lagradost.cloudstream3.ui.player.NEXT_WATCH_EPISODE_PERCENTAGE
 import com.lagradost.cloudstream3.ui.home.aggregation.*
 import com.lagradost.cloudstream3.ui.search.aggregation.AggregatedSearchResponse
 import com.lagradost.cloudstream4.AppSettings
@@ -204,7 +205,27 @@ class HomeViewModel : ViewModel() {
             getBookmarkedData(id)?.takeIf(::visibleHistory)?.let { entry(it, it.latestUpdatedTime, 0,
                 status == WatchType.COMPLETED, status == WatchType.DROPPED, it.year, it.bookmarkedTime, false) }
         }
-        RecommendationSnapshot(RecommendationPlan.from(resumes + library), signals.toSet())
+        // Finished works leave Continue watching; they stay signals (and are never suggested again),
+        // as on desktop. Films finished before they were recorded are told by their saved position:
+        // a film's episode ID is its page ID.
+        val resumeIds = getAllResumeStateIds().orEmpty().toSet()
+        fun header(id: Int) = getKey<DownloadObjects.DownloadHeaderCached>(DOWNLOAD_HEADER_CACHE, id.toString())
+            ?: getKey<DownloadObjects.DownloadHeaderCached>(DOWNLOAD_HEADER_CACHE_BACKUP, id.toString())
+        val recorded = DataStoreHelper.getFinishedWorks().filter { it.first !in resumeIds }
+        val recordedIds = recorded.map { it.first }.toSet()
+        val finishedFilms = com.lagradost.cloudstream3.CloudStreamApp.getKeys(DOWNLOAD_HEADER_CACHE).orEmpty()
+            .mapNotNull { it.removePrefix("$DOWNLOAD_HEADER_CACHE/").toIntOrNull() }
+            .filter { it !in resumeIds && it !in recordedIds }
+            .mapNotNull { id ->
+                getViewPos(id)?.takeIf { it.duration > 0 && it.position * 100 >= it.duration * NEXT_WATCH_EPISODE_PERCENTAGE }
+                    ?.let { id to (header(id)?.cacheTime ?: 0L) }
+            }
+        val finished = (recorded + finishedFilms).mapNotNull { (id, time) ->
+            val data = header(id) ?: return@mapNotNull null
+            DataStoreHelper.ResumeWatchingResult(data.name, data.url, data.apiName, data.type, data.poster, null, id, id, null, null, false)
+                .takeIf(::visibleHistory)?.let { entry(it, time, 0, completed = true, dropped = false) }
+        }
+        RecommendationSnapshot(RecommendationPlan.from(resumes + library + finished), signals.toSet())
     }
 
     private suspend fun loadDiscovery(forceReload: Boolean) {

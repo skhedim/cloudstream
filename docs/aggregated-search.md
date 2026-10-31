@@ -100,7 +100,9 @@ Device evidence is generated under `app/build/android-dev/discovery/`.
 are available. The app reuses `LoadResponse.recommendations` from up to three distinct movies
 and three distinct series/anime in the current local profile. Continue-watching entries
 take priority over Completed-only library entries. Thirty seconds of playback is required
-for a positive signal; a library entry marked Completed also counts. Merely opening a detail page does not count, and Dropped titles cannot seed
+for a positive signal; a library entry marked Completed also counts, and so does a finished work:
+finishing removes it from Continue watching, so `DataStoreHelper.setFinished` keeps the 50 most
+recent (films finished earlier are found by their saved position). Merely opening a detail page does not count, and Dropped titles cannot seed
 recommendations. Continue-watching positions, cached headers and Completed/Dropped library
 entries use the existing account-scoped stores. Canonical aliases restore all known bindings.
 
