@@ -33,7 +33,7 @@ try {
     $script:request = 0
     function Invoke-Mpv([object[]]$Command) {
         $script:request++
-        $writer.WriteLine((@{ command = $Command; request_id = $script:request } | ConvertTo-Json -Compress))
+        $writer.WriteLine((@{ command = $Command; request_id = $script:request } | ConvertTo-Json -Compress -Depth 6))
         while ($true) {
             $line = $reader.ReadLine()
             if ($null -eq $line) { throw 'mpv closed its IPC' }
@@ -58,6 +58,11 @@ try {
         if ((Get-Date) -gt $deadline) { throw 'mpv did not open the clip' }
         Start-Sleep -Milliseconds 250
     }
+    # Sources as the app lists them (PlaybackController.publishMenu).
+    $sources = @(@{ title = 'Vidzy'; hint = 'Movix - 1080p - VF'; active = $true },
+        @{ title = 'Uqload'; hint = 'Frembed - 720p - VF'; active = $false },
+        @{ title = 'Filemoon'; hint = 'KDesa - 1080p - VO'; active = $false })
+    [void](Invoke-Mpv @('set_property', 'user-data/kloudstream/sources', $sources))
     $width = Invoke-Mpv @('get_property', 'osd-width')
     $height = Invoke-Mpv @('get_property', 'osd-height')
     "window ${width}x${height}"
@@ -72,7 +77,7 @@ try {
     Hover (352 * $s) $row; Save-State '4-volume'
     Hover (74 * $s) (60 * $s); Save-State '5-back'
     Point 0.5 0.45
-    foreach ($menu in 'subtitles', 'audio', 'speed') {
+    foreach ($menu in 'subtitles', 'audio', 'speed', 'sources') {
         [void](Invoke-Mpv @('script-binding', "kloudstream/$menu")); Save-State "6-menu-$menu"
         [void](Invoke-Mpv @('keypress', 'ESC'))
     }
@@ -84,11 +89,14 @@ try {
     # Clicks through mpv's pointer, once the controls have appeared under it.
     function Click([double]$X, [double]$Y) {
         Hover $X $Y; Start-Sleep -Milliseconds 400
-        [void](Invoke-Mpv @('mouse', [int]$X, [int]$Y, 0, 'single')); Start-Sleep -Milliseconds 400
+        [void](Invoke-Mpv @('mouse', [int]$X, [int]$Y, 0, 'single')); Start-Sleep -Milliseconds 1200
     }
     Click ($width / 2) ($height - 138 * $s)
     "check timeline click: position $([int](Invoke-Mpv @('get_property', 'time-pos'))) s (expected 2700)"
-    Click ($width - 266 * $s) $row
+    Click ($width - 202 * $s) $row
+    "check sources button: menu $(Invoke-Mpv @('get_property', 'user-data/uosc/menu/type'))"
+    [void](Invoke-Mpv @('keypress', 'ESC')); Start-Sleep -Milliseconds 300
+    Click ($width - 330 * $s) $row
     "check subtitles button: menu $(Invoke-Mpv @('get_property', 'user-data/uosc/menu/type'))"
     [void](Invoke-Mpv @('keypress', 'ESC')); Start-Sleep -Milliseconds 300
     Click ($width / 2) ($height * 0.45)

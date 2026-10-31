@@ -23,7 +23,7 @@ local state = {
     shown = false, opacity = 0, menu = nil, idle = true, loading_since = nil,
     position = nil, duration = nil, paused = false, cache = {},
     volume = 100, mute = false, fullscreen = false, speed = 1,
-    title = '', episode = nil, tracks = {sub = {}, audio = {}}, sid = nil, aid = nil, next_episode = false,
+    title = '', episode = nil, tracks = {sub = {}, audio = {}}, sid = nil, aid = nil, next_episode = false, sources = {},
     drag = nil, drag_time = nil, pressed = nil, seek_at = 0, flash = nil, no_flash_until = 0,
 }
 local overlay = mp.create_osd_overlay('ass-events')
@@ -157,6 +157,15 @@ local function open_speed()
 end
 -- Handled by the app, which knows the next episode (PlaybackController).
 local function next_episode() mp.commandv('script-message', 'kloudstream-next-episode') end
+-- The sources the app found, as it lists them: choosing one plays it at the same position.
+local function open_sources()
+    local items = {}
+    for index, source in ipairs(state.sources) do
+        items[#items + 1] = {title = source.title, hint = source.hint, active = source.active == true,
+            value = {'script-message', 'kloudstream-source', tostring(index - 1)}}
+    end
+    open_menu('kloudstream-sources', 'Sources', items)
+end
 
 -- Layout --------------------------------------------------------------------------------------------
 
@@ -192,6 +201,7 @@ local function layout()
         state.fullscreen and 'Quitter le plein écran' or 'Plein écran', function() mp.commandv('cycle', 'fullscreen') end)
     x = x - step
     add('speed', x, y, 'speed', 38, 'Vitesse', open_speed)
+    if #state.sources > 1 then x = x - step; add('sources', x, y, 'video_library', 36, 'Sources', open_sources) end
     if #state.tracks.audio > 1 then x = x - step; add('audio', x, y, 'audiotrack', 36, 'Audio', open_audio) end
     -- Always there: the app may add French subtitles after the start, and "none" is an answer too.
     x = x - step
@@ -513,6 +523,10 @@ mp.observe_property('user-data/kloudstream/next-episode', 'native', function(_, 
     state.next_episode = value == true
     request()
 end)
+mp.observe_property('user-data/kloudstream/sources', 'native', function(_, value)
+    state.sources = type(value) == 'table' and value or {}
+    request()
+end)
 mp.observe_property('user-data/uosc/menu/type', 'native', function(_, menu)
     state.menu = menu
     bind_mouse(menu == nil)
@@ -524,3 +538,4 @@ mp.register_event('seek', function() if state.duration then show() end end)
 mp.add_key_binding(nil, 'subtitles', open_subtitles)
 mp.add_key_binding(nil, 'audio', open_audio)
 mp.add_key_binding(nil, 'speed', open_speed)
+mp.add_key_binding(nil, 'sources', open_sources)

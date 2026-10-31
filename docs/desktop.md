@@ -26,10 +26,13 @@ subtitles still offers OpenSubtitles' French ones, unselected (for its original 
 The Windows package puts KloudStream's player settings (`packaging/mpv`) in mpv's `portable_config`.
 `scripts/kloudstream.lua` draws the controls like a streaming app's: dark gradients, a rounded red
 timeline with a knob, round buttons with French tooltips (back, play, ±10 s, volume, subtitles,
-audio, speed, next episode, full screen), a pause flash and a loading ring. A click on the picture
+audio, sources, speed, next episode, full screen), a pause flash and a loading ring. A click on the picture
 pauses, a double click switches full screen, and the controls hide with the cursor after 2.5 s.
 The next episode button sends `script-message kloudstream-next-episode` to the app, which tells it
-there is one through `user-data/kloudstream/next-episode`. uosc (LGPL-2.1, pinned and checked like
+there is one through `user-data/kloudstream/next-episode`. Likewise the app lists the sources it
+found in `user-data/kloudstream/sources` (provider, quality, version, the playing one marked); the
+Sources button shows them when there are two or more and sends `script-message kloudstream-source
+<index>`, and the app plays that source at the same position. uosc (LGPL-2.1, pinned and checked like
 mpv) only shows the menus. mpv's own controls are turned off. `tools/windows/player-preview.sh`
 opens the installed player on a generated clip with the repository's settings and saves a
 screenshot of each state.

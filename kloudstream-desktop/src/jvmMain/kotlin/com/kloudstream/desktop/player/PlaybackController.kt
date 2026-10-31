@@ -82,6 +82,8 @@ class PlaybackController(private val scope: CoroutineScope) {
         const val AUTOPLAY_NEXT_KEY = "autoplay_next"
         /** Sent by the player's "next episode" button (`script-message`). */
         const val NEXT_EPISODE_MESSAGE = "kloudstream-next-episode"
+        /** Sent by the player's sources menu with the index of the chosen source (`script-message`). */
+        const val SOURCE_MESSAGE = "kloudstream-source"
     }
     private val _state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
     val state: StateFlow<PlaybackState> get() = _state
@@ -156,6 +158,9 @@ class PlaybackController(private val scope: CoroutineScope) {
         @Volatile private var waitingFromMs = 0L
         @Volatile private var acquisitionDone = false
         private val policy = PlaybackPolicy()
+        /** The sources as the player's menu lists them, and what was last sent to it. */
+        @Volatile private var menu: List<PlaybackSource> = emptyList()
+        @Volatile private var sentMenu: List<Map<String, Any?>>? = null
 
         fun start() {
             request.local?.let { return startLocal(it) }
@@ -258,6 +263,39 @@ class PlaybackController(private val scope: CoroutineScope) {
             load(target, if (started) positionMs else startPositionMs)
         }
 
+        /** A source picked in the player's menu: played at once, at the same position. */
+        fun chooseSource(index: Int) = scope.launch(Dispatchers.IO) {
+            val target = menu.getOrNull(index) ?: return@launch
+            val playing = current
+            if (playing != null && PlaybackSources.key(target.link) == PlaybackSources.key(playing.link)) return@launch
+            AppLog.info("Source chosen in the player: ${target.link.name}")
+            trial = false
+            previous = null
+            synchronized(sources) { failed.remove(PlaybackSources.key(target.link)) }
+            load(target, if (started) positionMs else startPositionMs)
+        }
+
+        /**
+         * The sources menu of the player (packaging/mpv/scripts/kloudstream.lua): every source found,
+         * the playing one first and marked, with its quality and version. Sent only when it changes.
+         */
+        private fun publishMenu(player: Mpv, playing: PlaybackSource) {
+            val list = (listOf(playing) + ranked()).distinctBy { PlaybackSources.key(it.link) }
+            val items = list.map { source ->
+                val version = when (source.version) {
+                    SourceVersion.VF -> "VF"; SourceVersion.VOST -> "VOSTFR"; SourceVersion.VO -> "VO"; else -> null
+                }
+                mapOf("title" to source.link.name,
+                    "hint" to listOfNotNull(source.metadata.provider.takeIf { it.isNotBlank() && it != source.link.name },
+                        "${PlaybackSources.quality(source.link)}p", version).joinToString(" · "),
+                    "active" to (source === playing))
+            }
+            if (items == sentMenu) return
+            menu = list
+            sentMenu = items
+            player.commands(listOf("set_property", "user-data/kloudstream/sources", items))
+        }
+
         private fun load(source: PlaybackSource, startMs: Long) {
             if (cancelled) return
             val player = try { ensureMpv(request.title) } catch (e: Exception) {
@@ -290,6 +328,7 @@ class PlaybackController(private val scope: CoroutineScope) {
 
         private fun publishPlaying() {
             val source = current ?: return
+            mpv?.let { publishMenu(it, source) }
             val versions = ranked().map { it.version }.filter { it != SourceVersion.Unknown && it != SourceVersion.Auto }
                 .distinct().sortedByDescending(PlaybackSources::versionRank)
             _state.value = PlaybackState.Playing(request.title, request.episodeLabel, source.link.name,
@@ -321,8 +360,9 @@ class PlaybackController(private val scope: CoroutineScope) {
                     "error" -> scope.launch(Dispatchers.IO) { onError(node.path("file_error").asText("error")) }
                     "eof" -> scope.launch(Dispatchers.IO) { onEnded() }
                 }
-                "client-message" -> if (node.path("args").path(0).asText() == NEXT_EPISODE_MESSAGE) {
-                    scope.launch(Dispatchers.IO) { onNextRequested() }
+                "client-message" -> when (node.path("args").path(0).asText()) {
+                    NEXT_EPISODE_MESSAGE -> scope.launch(Dispatchers.IO) { onNextRequested() }
+                    SOURCE_MESSAGE -> node.path("args").path(1).asText().toIntOrNull()?.let(::chooseSource)
                 }
             }
         }
