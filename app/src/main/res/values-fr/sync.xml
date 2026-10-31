@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_category">Synchronisation</string>
+    <string name="sync_title">Synchroniser l\'historique</string>
+    <string name="sync_summary_off">Partager Continuer à regarder et Pour toi avec vos autres appareils KloudStream</string>
+    <string name="sync_summary_on">Connecté à %1$s</string>
+    <string name="sync_summary_on_time">Connecté à %1$s · synchronisé à %2$s</string>
+    <string name="sync_unavailable">Indisponible dans cette version</string>
+    <string name="sync_description">L\'historique est gardé dans un dépôt privé de votre compte GitHub, auquel seule l\'application KloudStream Sync a accès. Tous les appareils connectés partagent Continuer à regarder et Pour toi.</string>
+    <string name="sync_connect">Connecter à GitHub</string>
+    <string name="sync_code">Sur votre téléphone ou ordinateur, ouvrez %1$s et saisissez ce code :</string>
+    <string name="sync_waiting">En attente de l\'autorisation…</string>
+    <string name="sync_now">Synchroniser maintenant</string>
+    <string name="sync_running">Synchronisation…</string>
+    <string name="sync_disconnect">Déconnecter cet appareil</string>
+    <string name="sync_problem_unauthorized">L\'accès a été retiré ou a expiré : reconnectez cet appareil.</string>
+    <string name="sync_problem_no_repository">L\'application KloudStream Sync n\'est installée sur aucun de vos dépôts : installez-la sur kloudstream-sync, puis reconnectez.</string>
+    <string name="sync_problem_denied">Le code a expiré ou a été refusé. Réessayez.</string>
+    <string name="sync_problem_network">GitHub est injoignable pour le moment ; nouvel essai dans 2 minutes.</string>
+</resources>

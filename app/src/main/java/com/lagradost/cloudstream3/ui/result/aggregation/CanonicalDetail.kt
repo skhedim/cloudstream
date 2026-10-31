@@ -35,8 +35,7 @@ data class CanonicalDetail(
         val canonical = episodes.getValue(episode.data)
         val sources = model.sources(canonical)
         val first = sources.first()
-        val id = if (response is MovieLoadResponse) episode.parentId
-            else "${request.identity}:${canonical.key}".hashCode()
+        val id = if (response is MovieLoadResponse) episode.parentId else episodeId(request.identity, canonical.key)
         val legacyIds = if (canonical.season != null && canonical.episode != null)
             listOf("None", "Dubbed", "Subbed").map { "${request.identity}:$it:${canonical.key}".hashCode() }
             else emptyList()
@@ -63,6 +62,16 @@ data class CanonicalDetail(
         /** Season slots for rows that cannot be placed in a numbered season. */
         const val UNLOCATED_SEASON = -1
         const val ABSOLUTE_SEASON = -2
+
+        /** The page's [LoadResponse.uniqueUrl]: history and bookmarks follow the work, not a provider page. */
+        fun pageUrl(identity: String) = "canonical:v1:" + MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
+
+        /** The page's ID in the history (getId() of [pageUrl], which has no provider URL or slash in it). */
+        fun pageId(identity: String) = pageUrl(identity).hashCode()
+
+        /** A series episode's ID in the history; a film's is [pageId]. */
+        fun episodeId(identity: String, episodeKey: String) = "$identity:$episodeKey".hashCode()
 
         /** [highlight]: the work's TMDB metadata, for its cast. */
         suspend fun create(request: CanonicalDetailRequest, loaded: List<LoadedDetail>, highlight: Highlight? = null): CanonicalDetail? =
@@ -128,8 +137,7 @@ data class CanonicalDetail(
                 apiName = api.name
                 year = request.year ?: metadata.year
                 // Stable identity for new history/bookmarks, independent of the representative URL.
-                uniqueUrl = "canonical:v1:" + MessageDigest.getInstance("SHA-256")
-                    .digest(request.identity.toByteArray()).joinToString("") { "%02x".format(it) }
+                uniqueUrl = pageUrl(request.identity)
                 posterUrl = metadata.posterUrl
                 posterHeaders = metadata.posterHeaders?.toMap()
                 backgroundPosterUrl = metadata.backgroundPosterUrl

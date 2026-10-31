@@ -65,6 +65,15 @@ object WatchHistory {
         publish()
     }
 
+    /** A state played on another device ([DesktopSyncedHistory]), kept with its own time. */
+    @Synchronized fun import(entry: WatchEntry) {
+        lastStamp = maxOf(lastStamp, entry.updatedAt)
+        json.set(progressKey(entry.identity, entry.episodeKey),
+            mapper.valueToTree(Progress(entry.positionMs, entry.durationMs, entry.updatedAt)))
+        json.set("item/${entry.identity}", mapper.valueToTree(entry))
+        publish()
+    }
+
     fun remove(identity: String) {
         json.keys().filter { it == "item/$identity" || it.startsWith("progress/$identity/") }.forEach { json.set(it, null) }
         publish()

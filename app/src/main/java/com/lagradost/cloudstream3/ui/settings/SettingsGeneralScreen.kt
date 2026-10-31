@@ -109,6 +109,10 @@ object SettingsGeneralScreen : SearchableSettings {
             )
         }
 
+        var isSyncShown by remember { mutableStateOf(false) }
+        if (isSyncShown) HistorySyncDialog(dismiss = { isSyncShown = false })
+        val syncSummary = historySyncSummary()
+
         val default = AllLanguagesName to stringResource(R.string.all_languages_preference)
         val languages = APIHolder.apis.withLock {
             APIHolder.apis.map { api -> api.lang }.distinct()
@@ -243,6 +247,18 @@ object SettingsGeneralScreen : SearchableSettings {
                         subtitle = stringResource(R.string.jsdelivr_proxy_summary),
                         icon = painterResource(R.drawable.wifi_proxy_24px),
                         preference = settings.general.jsdelivrProxy
+                    )
+                )
+            ),
+
+            Preference.PreferenceGroup(
+                title = stringResource(R.string.sync_category),
+                preferenceItems = persistentListOf(
+                    Preference.PreferenceItem.TextPreference(
+                        title = stringResource(R.string.sync_title),
+                        subtitle = syncSummary,
+                        icon = painterResource(R.drawable.ic_github_logo),
+                        onClick = { isSyncShown = true }
                     )
                 )
             ),

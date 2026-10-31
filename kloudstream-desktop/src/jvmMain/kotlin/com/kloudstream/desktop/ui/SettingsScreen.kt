@@ -53,6 +53,11 @@ import com.kloudstream.desktop.platform.DesktopPreferences
 import com.kloudstream.desktop.player.Mpv
 import com.kloudstream.desktop.player.PlaybackController
 import com.lagradost.cloudstream4.aggregation.SourceVersion
+import com.lagradost.cloudstream4.sync.GitHubLogin
+import com.lagradost.cloudstream4.sync.HistorySyncService
+import com.lagradost.cloudstream4.sync.SyncProblem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 @Composable
@@ -63,6 +68,7 @@ fun SettingsScreen() {
         SourcesSection()
         PlaybackSection()
         DownloadsSection()
+        SyncSection()
         DataSection()
         AboutSection()
     }
@@ -213,6 +219,67 @@ private fun DownloadsSection() {
         Text("Les téléchargements en cours reprennent au prochain démarrage. Les fichiers déjà téléchargés restent dans l'ancien dossier.",
             color = Kloud.Faint, fontSize = 13.sp)
     }
+}
+
+@Composable
+private fun SyncSection() {
+    val status by HistorySyncService.status.collectAsState()
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf<GitHubLogin.DeviceCode?>(null) }
+    var problem by remember { mutableStateOf<SyncProblem?>(null) }
+    var connecting by remember { mutableStateOf<Job?>(null) }
+    Section("Synchronisation") {
+        Text("Partage l'historique (Continuer à regarder, Pour vous) avec vos autres appareils KloudStream, " +
+            "dans un dépôt privé de votre compte GitHub.", color = Kloud.Muted)
+        val account = status.account
+        val shown = code
+        when {
+            !status.available -> Text("Indisponible dans cette version.", color = Kloud.Muted)
+            account != null -> {
+                Text("Connecté à ${account.repository}" + (status.lastSync?.let {
+                    " · synchronisé à " + java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneId.systemDefault())
+                        .toLocalTime().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"))
+                } ?: ""), color = Color.White)
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SecondaryButton(if (status.busy) "Synchronisation…" else "Synchroniser maintenant", Icons.Filled.Refresh) {
+                        scope.launch(Dispatchers.IO) { HistorySyncService.sync() }
+                    }
+                    SecondaryButton("Déconnecter cet appareil") { HistorySyncService.disconnect() }
+                }
+            }
+            shown != null -> {
+                Text("Sur votre téléphone ou ce PC, ouvrez ${shown.verificationUri} et saisissez ce code :", color = Color.White)
+                Text(shown.userCode, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 4.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PrimaryButton("Ouvrir la page GitHub", null) {
+                        runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI(shown.verificationUri)) }
+                    }
+                    SecondaryButton("Annuler") { connecting?.cancel(); code = null }
+                    Text("En attente de l'autorisation…", color = Kloud.Muted)
+                }
+            }
+            else -> PrimaryButton("Connecter à GitHub", null) {
+                connecting = scope.launch(Dispatchers.IO) {
+                    problem = null
+                    val started = runCatching { HistorySyncService.startConnect() }.getOrElse {
+                        problem = SyncProblem.Network
+                        return@launch
+                    }
+                    code = started
+                    try { problem = HistorySyncService.finishConnect(started) } finally { code = null }
+                }
+            }
+        }
+        (problem ?: status.problem)?.let { Text(syncProblemText(it), color = Kloud.Muted) }
+    }
+}
+
+private fun syncProblemText(problem: SyncProblem) = when (problem) {
+    SyncProblem.Unauthorized -> "L'accès a été retiré ou a expiré : reconnectez cet appareil."
+    SyncProblem.NoRepository -> "L'application KloudStream Sync n'est installée sur aucun de vos dépôts : " +
+        "installez-la sur kloudstream-sync, puis reconnectez."
+    SyncProblem.LoginDenied -> "Le code a expiré ou a été refusé. Réessayez."
+    SyncProblem.Network -> "GitHub est injoignable pour le moment ; nouvel essai dans 2 minutes."
 }
 
 @Composable

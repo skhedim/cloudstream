@@ -2,9 +2,12 @@ package com.kloudstream.desktop.app
 
 import com.kloudstream.desktop.core.AppLog
 import com.kloudstream.desktop.extensions.ExtensionManager
+import com.kloudstream.desktop.library.DesktopSyncedHistory
 import com.kloudstream.desktop.library.WatchHistory
 import com.kloudstream.desktop.platform.DesktopPlatform
 import com.kloudstream.desktop.player.PlaybackController
+import com.kloudstream.desktop.player.PlaybackState
+import com.lagradost.cloudstream4.sync.HistorySyncService
 import com.lagradost.cloudstream3.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +15,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -39,6 +43,7 @@ object AppModel {
             try {
                 DesktopPlatform.install()
                 WatchHistory.load()
+                HistorySyncService.install(DesktopSyncedHistory, "PC") {}
                 player.setFullscreen(com.kloudstream.desktop.platform.DesktopPreferences.open("kloudstream").getBoolean("player_fullscreen", true))
                 if (ExtensionManager.installed().isEmpty()) {
                     _startup.value = Startup.Loading("Installation des sources…")
@@ -61,6 +66,16 @@ object AppModel {
                         kotlinx.coroutines.delay(5_000)
                         home.refreshForYou()
                     }
+                }
+                // The history shared with the other devices: now, every 2 minutes and after each viewing.
+                scope.launch(Dispatchers.IO) {
+                    while (true) {
+                        HistorySyncService.sync()
+                        kotlinx.coroutines.delay(2 * 60_000L)
+                    }
+                }
+                scope.launch(Dispatchers.IO) {
+                    player.state.drop(1).filter { it is PlaybackState.Idle }.collect { HistorySyncService.sync() }
                 }
                 // Updates are installed in the background and applied right away.
                 val changed = ExtensionManager.syncRecommended()

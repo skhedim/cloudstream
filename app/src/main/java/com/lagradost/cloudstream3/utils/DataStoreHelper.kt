@@ -547,10 +547,10 @@ object DataStoreHelper {
      * Finishing removes them from Continue watching; "For you" still uses them, as on desktop.
      */
     private const val FINISHED_WORKS = "kloudstream_finished_works"
-    fun setFinished(parentId: Int?) {
+    fun setFinished(parentId: Int?, time: Long = System.currentTimeMillis()) {
         if (parentId == null) return
         val folder = "$currentAccount/$FINISHED_WORKS"
-        setKey(folder, parentId.toString(), System.currentTimeMillis())
+        setKey(folder, parentId.toString(), time)
         // The 50 most recent are enough for suggestions.
         getFinishedWorks().drop(50).forEach { (id, _) -> removeKey(folder, id.toString()) }
     }

@@ -9,6 +9,7 @@ import android.content.SharedPreferences
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Rect
+import android.os.Build
 import android.os.Bundle
 import android.util.AttributeSet
 import android.util.Log
@@ -39,6 +40,8 @@ import androidx.core.view.isVisible
 import androidx.core.view.marginStart
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -182,10 +185,13 @@ import com.lagradost.cloudstream3.utils.txt
 import com.lagradost.cloudstream4.compose.CloudStreamThemeAppSettings
 import com.lagradost.cloudstream4.theme.CloudStreamTheme
 import com.lagradost.safefile.SafeFile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.lang.ref.WeakReference
 import java.net.URI
@@ -1182,6 +1188,27 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
         }
     }
 
+    /**
+     * KloudStream: the history shared with the other devices (HistorySyncService), while the app is
+     * visible: once the providers are loaded (works open through them), then every 2 minutes.
+     */
+    private fun startHistorySync() {
+        com.lagradost.cloudstream4.sync.HistorySyncService.install(
+            com.lagradost.cloudstream3.utils.AndroidSyncedHistory, Build.MODEL ?: "Android"
+        ) { runOnUiThread { bookmarksUpdatedEvent(true) } }
+        lifecycleScope.launch {
+            repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                kotlinx.coroutines.withTimeoutOrNull(60_000) {
+                    while (!PluginManager.loadedLocalPlugins) kotlinx.coroutines.delay(1_000)
+                }
+                while (true) {
+                    withContext(Dispatchers.IO) { com.lagradost.cloudstream4.sync.HistorySyncService.sync() }
+                    kotlinx.coroutines.delay(2 * 60_000L)
+                }
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         app.initClient(this, ignoreSSL = false)
         @OptIn(UnsafeSSL::class)
@@ -1202,6 +1229,7 @@ class MainActivity : AppCompatActivity(), ColorPickerDialogListener, BiometricCa
         setNavigationBarColorCompat(R.attr.primaryGrayBackground)
         updateLocale()
         super.onCreate(savedInstanceState)
+        startHistorySync()
         try {
             if (isCastApiAvailable()) {
                 CastContext.getSharedInstance(this) { it.run() }

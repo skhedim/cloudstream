@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sync_category">Sync</string>
+    <string name="sync_title">Sync history</string>
+    <string name="sync_summary_off">Share Continue watching and For you with your other KloudStream devices</string>
+    <string name="sync_summary_on">Connected to %1$s</string>
+    <string name="sync_summary_on_time">Connected to %1$s · synced at %2$s</string>
+    <string name="sync_unavailable">Unavailable in this version</string>
+    <string name="sync_description">Your history is kept in a private repository of your GitHub account, which only the KloudStream Sync app can access. Every device connected to it shares Continue watching and For you.</string>
+    <string name="sync_connect">Connect to GitHub</string>
+    <string name="sync_code">On your phone or computer, open %1$s and enter this code:</string>
+    <string name="sync_waiting">Waiting for authorization…</string>
+    <string name="sync_now">Sync now</string>
+    <string name="sync_running">Syncing…</string>
+    <string name="sync_disconnect">Disconnect this device</string>
+    <string name="sync_problem_unauthorized">The access was revoked or expired: connect this device again.</string>
+    <string name="sync_problem_no_repository">KloudStream Sync is installed on none of your repositories: install it on kloudstream-sync, then connect again.</string>
+    <string name="sync_problem_denied">The code expired or was refused. Try again.</string>
+    <string name="sync_problem_network">GitHub cannot be reached right now; next try in 2 minutes.</string>
+</resources>
